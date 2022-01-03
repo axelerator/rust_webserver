@@ -27,6 +27,8 @@ async fn main() {
         .max_connections(5)
         .connect("postgres://rust@localhost/rust_server").await.unwrap();
 
+    let static_files = warp::any().and(warp::fs::dir("client"));
+
     let login = warp::path("login")
         .and(warp::body::content_length_limit(1024 * 16))
         .and(with_db(pool))
@@ -35,8 +37,7 @@ async fn main() {
 
     let post_routes = warp::post().and(login);
 
-
-    warp::serve(post_routes)
+    warp::serve(post_routes.or(static_files))
         .run(([127, 0, 0, 1], 3030))
         .await;
 }
