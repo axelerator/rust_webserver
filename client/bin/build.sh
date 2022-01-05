@@ -40,5 +40,5 @@ function buildCode() {
 
 while true; do
   buildCode
-  fswatch --event PlatformSpecific --event Updated --event MovedTo src/**.elm assets/ -1
+  fswatch src/ assets/ -1
 done
