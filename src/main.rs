@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgExecutor, PgPool, Pool, Postgres};
+use std::sync::mpsc::{sync_channel, SyncSender};
 use warp::log::Log;
 use warp::reply::Json;
 use warp::{Filter, Rejection, Reply};
-use std::sync::mpsc::{sync_channel, SyncSender};
 
 #[derive(Serialize, Deserialize)]
 struct Login {
@@ -14,8 +14,18 @@ struct Login {
 
 #[derive(Serialize, Deserialize)]
 enum LoginResponse {
-    Success(String),
-    Failure(String),
+    Success(LoginSuccessDetails),
+    Failure(LoginFailureDetails),
+}
+
+#[derive(Serialize, Deserialize)]
+struct LoginSuccessDetails {
+    token: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct LoginFailureDetails {
+    msg: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -37,7 +47,7 @@ fn with_db(
 
 #[tokio::main]
 async fn main() {
-    let (sender, receiver) = sync_channel::<ClientAction>(3); 
+    let (sender, receiver) = sync_channel::<ClientAction>(3);
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -86,17 +96,26 @@ async fn auth_handler(
     let login_response = match user {
         Ok(user) => {
             if user.hashed_password.eq(&login.password) {
-                LoginResponse::Success(user.username)
+                LoginResponse::Success(LoginSuccessDetails {
+                    token: "aToken".to_string(),
+                })
             } else {
-                LoginResponse::Failure("wrong pw".to_string())
+                LoginResponse::Failure(LoginFailureDetails {
+                    msg: "wrong pw".to_string(),
+                })
             }
         }
-        Err(_) => LoginResponse::Failure("not found".to_string()),
+        Err(_) => LoginResponse::Failure(LoginFailureDetails {
+            msg: "not found".to_string(),
+        }),
     };
     Ok(warp::reply::json(&login_response))
 }
 
-async fn action_handler(sender: SyncSender<ClientAction>, action: ClientAction) -> std::result::Result<impl Reply, Rejection> {
+async fn action_handler(
+    sender: SyncSender<ClientAction>,
+    action: ClientAction,
+) -> std::result::Result<impl Reply, Rejection> {
     sender.send(action.clone()).unwrap();
     Ok(warp::reply::json(&action))
 }
