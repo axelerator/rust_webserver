@@ -44,10 +44,19 @@ struct Client {
     user_id: Option<i32>,
 }
 
+#[derive(Clone)]
+struct Env {
+    pool: PgPool,
+}
+
 fn with_db(
     pool: PgPool,
 ) -> impl Filter<Extract = (PgPool,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || pool.clone())
+}
+
+fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || env.clone())
 }
 
 #[tokio::main]
@@ -60,13 +69,14 @@ async fn main() {
         .await
         .unwrap();
 
+    let env = Env { pool: pool.clone() };
     let static_files = warp::any().and(warp::fs::dir("client"));
 
     let login = warp::path("login")
         .and(warp::body::content_length_limit(1024 * 16))
-        .and(with_db(pool))
+        .and(with_env(env))
         .and(warp::body::json())
-        .and_then(move |local_pool: PgPool, login: Login| auth_handler(local_pool, login));
+        .and_then(move |env: Env, login: Login| auth_handler(env.pool, login));
 
     let action = warp::path("action")
         .and(warp::any().map(move || sender.clone()))
