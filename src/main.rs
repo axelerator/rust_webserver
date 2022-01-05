@@ -39,6 +39,11 @@ enum ActionResponse {
     Failure(String),
 }
 
+struct Client {
+    token: String,
+    user_id: Option<i32>,
+}
+
 fn with_db(
     pool: PgPool,
 ) -> impl Filter<Extract = (PgPool,), Error = std::convert::Infallible> + Clone {
@@ -87,7 +92,7 @@ async fn auth_handler(
     login: Login,
 ) -> std::result::Result<impl Reply, Rejection> {
     let user = sqlx::query_as::<_, User>(
-        "SELECT username, hashed_password FROM users WHERE username = $1",
+        "SELECT id, username, hashed_password FROM users WHERE username = $1",
     )
     .bind(login.username)
     .fetch_one(&ext_pool)
