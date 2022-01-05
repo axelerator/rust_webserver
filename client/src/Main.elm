@@ -1,8 +1,11 @@
 module Main exposing (..)
 
+import Api
 import Browser
 import Html exposing (Html, button, div, input, span, text)
 import Html.Events exposing (onClick)
+import Pages.Chat as Chat
+import Pages.Login as Login
 import String exposing (fromInt)
 
 
@@ -23,15 +26,14 @@ main =
 -- MODEL
 
 
-type alias Model =
-    { left : Int
-    , right : Int
-    }
+type Model
+    = OnLogin Login.Model
+    | OnChat Chat.Model
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { left = 0, right = 0 }
+    ( OnLogin Login.init
     , Cmd.none
     )
 
@@ -41,22 +43,52 @@ init _ =
 
 
 type Msg
-    = Left
-    | Right
+    = ForLogin Login.Msg
+    | ForChat Chat.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        Left ->
-            ( { model | left = model.left + 1 }
-            , Cmd.none
+    case ( msg, model ) of
+        ( ForLogin ((Login.GotLoginResponse httpResponse) as subMsg), OnLogin subModel ) ->
+            let
+                loginSuccessModel =
+                    case httpResponse of
+                        Ok loginResponse ->
+                            case loginResponse of
+                                Api.LoginSuccess { token } ->
+                                    Just <| OnChat <| Chat.fromTokenAndUsername token "placeholder"
+
+                                _ ->
+                                    Nothing
+
+                        _ ->
+                            Nothing
+            in
+            case loginSuccessModel of
+                Just chatModel ->
+                    ( chatModel, Cmd.none )
+
+                Nothing ->
+                    let
+                        ( updateSubModel, cmd ) =
+                            Login.update subMsg subModel
+                    in
+                    ( OnLogin updateSubModel
+                    , Cmd.map ForLogin cmd
+                    )
+
+        ( ForLogin subMsg, OnLogin subModel ) ->
+            let
+                ( updateSubModel, cmd ) =
+                    Login.update subMsg subModel
+            in
+            ( OnLogin updateSubModel
+            , Cmd.map ForLogin cmd
             )
 
-        Right ->
-            ( { model | right = model.right + 1 }
-            , Cmd.none
-            )
+        _ ->
+            ( model, Cmd.none )
 
 
 
@@ -75,17 +107,11 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div []
-        [ button [ onClick Left ] [ text "Left: ", text <| fromInt model.left ]
-        , button [ onClick Right ] [ text "Right: ", text <| fromInt model.right ]
-        , div [] [ text "LOOK MUM, NO SERVER!!8" ]
-        , div []
-            [ div []
-                [ span [] [ text "user" ]
-                , input [] []
-                ]
-            , div []
-                [ span [] [ text "pw" ]
-                , input [] []
-                ]
-            ]
+        [ div [] [ text "LOOK MUM, NO SERVER!!8" ]
+        , case model of
+            OnLogin subModel ->
+                Html.map ForLogin <| Login.view subModel
+
+            OnChat subModel ->
+                Html.map ForChat <| Chat.view subModel
         ]
