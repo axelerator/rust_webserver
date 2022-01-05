@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
-use sqlx::{PgExecutor, PgPool, Pool, Postgres};
+use sqlx::PgPool;
 use std::sync::mpsc::{sync_channel, SyncSender};
-use warp::log::Log;
-use warp::reply::Json;
 use warp::{Filter, Rejection, Reply};
 
 #[derive(Serialize, Deserialize)]
@@ -47,12 +45,6 @@ struct Client {
 #[derive(Clone)]
 struct Env {
     pool: PgPool,
-}
-
-fn with_db(
-    pool: PgPool,
-) -> impl Filter<Extract = (PgPool,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || pool.clone())
 }
 
 fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
