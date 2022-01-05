@@ -127,32 +127,7 @@ async fn action_handler(
 
 #[derive(Clone, sqlx::FromRow)]
 struct User {
+    id: i32,
     username: String,
     hashed_password: String,
-}
-
-fn find_user_by_username_and_password(username: &String, password: &String) -> Option<User> {
-    let users: Vec<User> = [
-        User {
-            username: "at".to_string(),
-            hashed_password: "aa".to_string(),
-        },
-        User {
-            username: "rb".to_string(),
-            hashed_password: "rb".to_string(),
-        },
-    ]
-    .to_vec();
-
-    let res = match users.iter().find(|u| u.username.eq(username)) {
-        Some(user) => {
-            if user.hashed_password.eq(password) {
-                Some(user.clone())
-            } else {
-                None
-            }
-        }
-        None => None,
-    };
-    res
 }
