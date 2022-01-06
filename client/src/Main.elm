@@ -1,12 +1,19 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Api
 import Browser
 import Html exposing (Html, button, div, input, span, text)
 import Html.Events exposing (onClick)
+import Json.Encode exposing (Value)
 import Pages.Chat as Chat
 import Pages.Login as Login
 import String exposing (fromInt)
+
+
+port toClientEvent : (Value -> msg) -> Sub msg
+
+
+port connectToSSE : String -> Cmd msg
 
 
 
@@ -33,7 +40,7 @@ type Model
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( OnLogin Login.init
+    ( OnLogin (Login.init Nothing)
     , Cmd.none
     )
 
@@ -45,6 +52,7 @@ init _ =
 type Msg
     = ForLogin Login.Msg
     | ForChat Chat.Msg
+    | Logout
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -57,7 +65,10 @@ update msg model =
                         Ok loginResponse ->
                             case loginResponse of
                                 Api.LoginSuccess { token } ->
-                                    Just <| OnChat <| Chat.fromTokenAndUsername token "placeholder"
+                                    Just
+                                        ( OnChat <| Chat.fromTokenAndUsername token "placeholder"
+                                        , connectToSSE token
+                                        )
 
                                 _ ->
                                     Nothing
@@ -66,8 +77,8 @@ update msg model =
                             Nothing
             in
             case loginSuccessModel of
-                Just chatModel ->
-                    ( chatModel, Cmd.none )
+                Just ( chatModel, cmd ) ->
+                    ( chatModel, cmd )
 
                 Nothing ->
                     let
@@ -87,6 +98,20 @@ update msg model =
             , Cmd.map ForLogin cmd
             )
 
+        ( Logout, _ ) ->
+            ( OnLogin (Login.init <| Just "You got logged out")
+            , connectToSSE ""
+            )
+
+        ( ForChat subMsg, OnChat subModel ) ->
+            let
+                ( updateSubModel, cmd ) =
+                    Chat.update subMsg subModel
+            in
+            ( OnChat updateSubModel
+            , Cmd.map ForChat cmd
+            )
+
         _ ->
             ( model, Cmd.none )
 
@@ -97,7 +122,16 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    let
+        msg jsonValue =
+            case Chat.mapEvent jsonValue of
+                Just chatEvent ->
+                    ForChat chatEvent
+
+                Nothing ->
+                    Logout
+    in
+    toClientEvent msg
 
 
 

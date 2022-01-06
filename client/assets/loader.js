@@ -7,6 +7,27 @@ function loadElm() {
   });
 }
 
+// empty token means -> disconnect
+function connectToSSE(token) {
+  if (token == "") {
+    console.log("Closing connection", e);
+    window.evtSource.close();
+  } else {
+    const evtSource = new EventSource("/events/" + token, { withCredentials: true })
+    evtSource.onmessage =  function(event) {
+      console.log("Received event", JSON.parse(event.data));
+      app.ports.toClientEvent.send(JSON.parse(event.data));
+    };
+    evtSource.onopen = function(e) {
+      console.log("Connection to server opened.");
+    };
+    evtSource.onerror =  function(e) {
+      console.log("error", e);
+    };
+    window.evtSource = evtSource;
+  }
+};
+
 function initElm() {
   const main = document.querySelector('main')
   while (main.firstChild) {
@@ -19,9 +40,13 @@ function initElm() {
   const app = Elm.Main.init({
     node: main_content
   });
+
+  app.ports.connectToSSE.subscribe(connectToSSE)
+  window.app = app;
 }
 
-const hotReloadInterval = window.setInterval(checkTimestamp, 1000)
+
+//const hotReloadInterval = window.setInterval(checkTimestamp, 1000)
 window.lastTimestamp = '';
 const parsedUrl = new URL(window.location.href);
 const pathPrefix = parsedUrl.pathname.replace('/index.html', '');

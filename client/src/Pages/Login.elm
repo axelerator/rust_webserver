@@ -11,13 +11,15 @@ type alias Model =
     { username : String
     , password : String
     , loading : Bool
+    , msg : Maybe String
     }
 
 
-init =
+init msg =
     { username = "at"
     , password = "aa"
     , loading = False
+    , msg = msg
     }
 
 
@@ -78,7 +80,13 @@ attemptLogin username password =
 view : Model -> Html Msg
 view model =
     div []
-        [ inp "username" "text" model.username ChangeUsername
+        [ case model.msg of
+            Just msg ->
+                text msg
+
+            Nothing ->
+                text ""
+        , inp "username" "text" model.username ChangeUsername
         , inp "password" "password" model.password ChangePassword
         , if model.loading then
             text "loading"

@@ -5322,18 +5322,96 @@ var $elm$browser$Browser$element = _Browser_element;
 var $author$project$Main$OnLogin = function (a) {
 	return {$: 'OnLogin', a: a};
 };
-var $author$project$Pages$Login$init = {loading: false, password: 'aa', username: 'at'};
+var $author$project$Pages$Login$init = function (msg) {
+	return {loading: false, msg: msg, password: 'aa', username: 'at'};
+};
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$Main$init = function (_v0) {
 	return _Utils_Tuple2(
-		$author$project$Main$OnLogin($author$project$Pages$Login$init),
+		$author$project$Main$OnLogin(
+			$author$project$Pages$Login$init($elm$core$Maybe$Nothing)),
 		$elm$core$Platform$Cmd$none);
 };
-var $elm$core$Platform$Sub$batch = _Platform_batch;
-var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
+var $author$project$Main$ForChat = function (a) {
+	return {$: 'ForChat', a: a};
+};
+var $author$project$Main$Logout = {$: 'Logout'};
+var $author$project$Pages$Chat$EventDecoderError = function (a) {
+	return {$: 'EventDecoderError', a: a};
+};
+var $author$project$Pages$Chat$GotEvent = function (a) {
+	return {$: 'GotEvent', a: a};
+};
+var $elm$json$Json$Decode$decodeValue = _Json_run;
+var $author$project$Pages$Chat$AppMsg = function (a) {
+	return {$: 'AppMsg', a: a};
+};
+var $elm$json$Json$Decode$field = _Json_decodeField;
+var $author$project$Pages$Chat$HelloClient = {$: 'HelloClient'};
+var $elm$json$Json$Decode$andThen = _Json_andThen;
+var $elm$json$Json$Decode$fail = _Json_fail;
+var $elm$json$Json$Decode$string = _Json_decodeString;
+var $author$project$Pages$Chat$toClientDecoder = A2(
+	$elm$json$Json$Decode$andThen,
+	function (s) {
+		if (s === 'HelloClient') {
+			return $elm$json$Json$Decode$succeed($author$project$Pages$Chat$HelloClient);
+		} else {
+			return $elm$json$Json$Decode$fail('Unkown ToClient: ' + s);
+		}
+	},
+	$elm$json$Json$Decode$string);
+var $author$project$Pages$Chat$appMsgDecoder = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Pages$Chat$AppMsg,
+	A2($elm$json$Json$Decode$field, 'AppMsg', $author$project$Pages$Chat$toClientDecoder));
+var $elm$json$Json$Decode$oneOf = _Json_oneOf;
+var $author$project$Pages$Chat$SuperSeeded = {$: 'SuperSeeded'};
+var $elm$json$Json$Decode$list = _Json_decodeList;
+var $author$project$Pages$Chat$superSeededDecoder = A2(
+	$elm$json$Json$Decode$andThen,
+	function (_v0) {
+		return $elm$json$Json$Decode$succeed($author$project$Pages$Chat$SuperSeeded);
+	},
+	A2(
+		$elm$json$Json$Decode$field,
+		'SuperSeeded',
+		$elm$json$Json$Decode$list($elm$json$Json$Decode$string)));
+var $author$project$Pages$Chat$eventDecoder = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[$author$project$Pages$Chat$superSeededDecoder, $author$project$Pages$Chat$appMsgDecoder]));
+var $author$project$Pages$Chat$mapEvent = function (value) {
+	var _v0 = A2($elm$json$Json$Decode$decodeValue, $author$project$Pages$Chat$eventDecoder, value);
+	if (_v0.$ === 'Ok') {
+		if (_v0.a.$ === 'SuperSeeded') {
+			var _v1 = _v0.a;
+			return $elm$core$Maybe$Nothing;
+		} else {
+			var event = _v0.a.a;
+			return $elm$core$Maybe$Just(
+				$author$project$Pages$Chat$GotEvent(event));
+		}
+	} else {
+		var error = _v0.a;
+		return $elm$core$Maybe$Just(
+			$author$project$Pages$Chat$EventDecoderError(
+				$elm$json$Json$Decode$errorToString(error)));
+	}
+};
+var $elm$json$Json$Decode$value = _Json_decodeValue;
+var $author$project$Main$toClientEvent = _Platform_incomingPort('toClientEvent', $elm$json$Json$Decode$value);
 var $author$project$Main$subscriptions = function (model) {
-	return $elm$core$Platform$Sub$none;
+	var msg = function (jsonValue) {
+		var _v0 = $author$project$Pages$Chat$mapEvent(jsonValue);
+		if (_v0.$ === 'Just') {
+			var chatEvent = _v0.a;
+			return $author$project$Main$ForChat(chatEvent);
+		} else {
+			return $author$project$Main$Logout;
+		}
+	};
+	return $author$project$Main$toClientEvent(msg);
 };
 var $author$project$Main$ForLogin = function (a) {
 	return {$: 'ForLogin', a: a};
@@ -5341,52 +5419,19 @@ var $author$project$Main$ForLogin = function (a) {
 var $author$project$Main$OnChat = function (a) {
 	return {$: 'OnChat', a: a};
 };
+var $elm$json$Json$Encode$string = _Json_wrap;
+var $author$project$Main$connectToSSE = _Platform_outgoingPort('connectToSSE', $elm$json$Json$Encode$string);
 var $author$project$Pages$Chat$fromTokenAndUsername = F2(
 	function (token, username) {
 		return {
 			currentChannel: 'a channel name',
+			events: _List_Nil,
 			session: {token: token, username: username}
 		};
 	});
 var $elm$core$Platform$Cmd$map = _Platform_map;
-var $author$project$Pages$Login$GotLoginResponse = function (a) {
-	return {$: 'GotLoginResponse', a: a};
-};
-var $author$project$Api$LoginFailure = function (a) {
-	return {$: 'LoginFailure', a: a};
-};
-var $author$project$Api$FailureDetails = function (msg) {
-	return {msg: msg};
-};
-var $elm$json$Json$Decode$field = _Json_decodeField;
-var $elm$json$Json$Decode$string = _Json_decodeString;
-var $author$project$Api$decodeFailureDetails = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$FailureDetails,
-	A2($elm$json$Json$Decode$field, 'msg', $elm$json$Json$Decode$string));
-var $author$project$Api$decodeLoginFailure = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$LoginFailure,
-	A2($elm$json$Json$Decode$field, 'Failure', $author$project$Api$decodeFailureDetails));
-var $author$project$Api$LoginSuccess = function (a) {
-	return {$: 'LoginSuccess', a: a};
-};
-var $author$project$Api$SuccessDetails = function (token) {
-	return {token: token};
-};
-var $author$project$Api$decodeSuccessDetails = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$SuccessDetails,
-	A2($elm$json$Json$Decode$field, 'token', $elm$json$Json$Decode$string));
-var $author$project$Api$decodeLoginSuccess = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$LoginSuccess,
-	A2($elm$json$Json$Decode$field, 'Success', $author$project$Api$decodeSuccessDetails));
-var $elm$json$Json$Decode$oneOf = _Json_oneOf;
-var $author$project$Api$decodeLoginResponse = $elm$json$Json$Decode$oneOf(
-	_List_fromArray(
-		[$author$project$Api$decodeLoginSuccess, $author$project$Api$decodeLoginFailure]));
-var $elm$json$Json$Decode$decodeString = _Json_runOnString;
+var $elm$core$Debug$log = _Debug_log;
+var $author$project$Pages$Chat$NoOp = {$: 'NoOp'};
 var $elm$http$Http$BadStatus_ = F2(
 	function (a, b) {
 		return {$: 'BadStatus_', a: a, b: b};
@@ -5934,24 +5979,13 @@ var $elm$core$Basics$composeR = F3(
 		return g(
 			f(x));
 	});
-var $elm$http$Http$expectStringResponse = F2(
+var $elm$http$Http$expectBytesResponse = F2(
 	function (toMsg, toResult) {
 		return A3(
 			_Http_expect,
-			'',
-			$elm$core$Basics$identity,
+			'arraybuffer',
+			_Http_toDataView,
 			A2($elm$core$Basics$composeR, toResult, toMsg));
-	});
-var $elm$core$Result$mapError = F2(
-	function (f, result) {
-		if (result.$ === 'Ok') {
-			var v = result.a;
-			return $elm$core$Result$Ok(v);
-		} else {
-			var e = result.a;
-			return $elm$core$Result$Err(
-				f(e));
-		}
 	});
 var $elm$http$Http$BadBody = function (a) {
 	return {$: 'BadBody', a: a};
@@ -5964,6 +5998,17 @@ var $elm$http$Http$BadUrl = function (a) {
 };
 var $elm$http$Http$NetworkError = {$: 'NetworkError'};
 var $elm$http$Http$Timeout = {$: 'Timeout'};
+var $elm$core$Result$mapError = F2(
+	function (f, result) {
+		if (result.$ === 'Ok') {
+			var v = result.a;
+			return $elm$core$Result$Ok(v);
+		} else {
+			var e = result.a;
+			return $elm$core$Result$Err(
+				f(e));
+		}
+	});
 var $elm$http$Http$resolve = F2(
 	function (toResult, response) {
 		switch (response.$) {
@@ -5987,50 +6032,20 @@ var $elm$http$Http$resolve = F2(
 					toResult(body));
 		}
 	});
-var $elm$http$Http$expectJson = F2(
-	function (toMsg, decoder) {
-		return A2(
-			$elm$http$Http$expectStringResponse,
-			toMsg,
-			$elm$http$Http$resolve(
-				function (string) {
-					return A2(
-						$elm$core$Result$mapError,
-						$elm$json$Json$Decode$errorToString,
-						A2($elm$json$Json$Decode$decodeString, decoder, string));
-				}));
-	});
+var $elm$http$Http$expectWhatever = function (toMsg) {
+	return A2(
+		$elm$http$Http$expectBytesResponse,
+		toMsg,
+		$elm$http$Http$resolve(
+			function (_v0) {
+				return $elm$core$Result$Ok(_Utils_Tuple0);
+			}));
+};
 var $elm$http$Http$jsonBody = function (value) {
 	return A2(
 		_Http_pair,
 		'application/json',
 		A2($elm$json$Json$Encode$encode, 0, value));
-};
-var $elm$json$Json$Encode$object = function (pairs) {
-	return _Json_wrap(
-		A3(
-			$elm$core$List$foldl,
-			F2(
-				function (_v0, obj) {
-					var k = _v0.a;
-					var v = _v0.b;
-					return A3(_Json_addField, k, v, obj);
-				}),
-			_Json_emptyObject(_Utils_Tuple0),
-			pairs));
-};
-var $elm$json$Json$Encode$string = _Json_wrap;
-var $author$project$Api$loginEncoder = function (login) {
-	return $elm$json$Json$Encode$object(
-		_List_fromArray(
-			[
-				_Utils_Tuple2(
-				'username',
-				$elm$json$Json$Encode$string(login.username)),
-				_Utils_Tuple2(
-				'password',
-				$elm$json$Json$Encode$string(login.password))
-			]));
 };
 var $elm$http$Http$Request = function (a) {
 	return {$: 'Request', a: a};
@@ -6204,6 +6219,134 @@ var $elm$http$Http$post = function (r) {
 	return $elm$http$Http$request(
 		{body: r.body, expect: r.expect, headers: _List_Nil, method: 'POST', timeout: $elm$core$Maybe$Nothing, tracker: $elm$core$Maybe$Nothing, url: r.url});
 };
+var $elm$json$Json$Encode$object = function (pairs) {
+	return _Json_wrap(
+		A3(
+			$elm$core$List$foldl,
+			F2(
+				function (_v0, obj) {
+					var k = _v0.a;
+					var v = _v0.b;
+					return A3(_Json_addField, k, v, obj);
+				}),
+			_Json_emptyObject(_Utils_Tuple0),
+			pairs));
+};
+var $author$project$Api$toBackendEnvelopeEncoder = function (be) {
+	return $elm$json$Json$Encode$object(
+		_List_fromArray(
+			[
+				_Utils_Tuple2(
+				'token',
+				$elm$json$Json$Encode$string(be.token))
+			]));
+};
+var $author$project$Pages$Chat$sendAction = function (token) {
+	return $elm$http$Http$post(
+		{
+			body: $elm$http$Http$jsonBody(
+				$author$project$Api$toBackendEnvelopeEncoder(
+					{token: token})),
+			expect: $elm$http$Http$expectWhatever(
+				function (_v0) {
+					return $author$project$Pages$Chat$NoOp;
+				}),
+			url: '/action'
+		});
+};
+var $author$project$Pages$Chat$update = F2(
+	function (msg, model) {
+		switch (msg.$) {
+			case 'NoOp':
+				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'EventDecoderError':
+				var e = msg.a;
+				return _Utils_Tuple2(
+					A2($elm$core$Debug$log, e, model),
+					$elm$core$Platform$Cmd$none);
+			case 'GotEvent':
+				var e = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							events: A2($elm$core$List$cons, e, model.events)
+						}),
+					$elm$core$Platform$Cmd$none);
+			default:
+				return _Utils_Tuple2(
+					model,
+					$author$project$Pages$Chat$sendAction(model.session.token));
+		}
+	});
+var $author$project$Pages$Login$GotLoginResponse = function (a) {
+	return {$: 'GotLoginResponse', a: a};
+};
+var $author$project$Api$LoginFailure = function (a) {
+	return {$: 'LoginFailure', a: a};
+};
+var $author$project$Api$FailureDetails = function (msg) {
+	return {msg: msg};
+};
+var $author$project$Api$decodeFailureDetails = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$FailureDetails,
+	A2($elm$json$Json$Decode$field, 'msg', $elm$json$Json$Decode$string));
+var $author$project$Api$decodeLoginFailure = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$LoginFailure,
+	A2($elm$json$Json$Decode$field, 'Failure', $author$project$Api$decodeFailureDetails));
+var $author$project$Api$LoginSuccess = function (a) {
+	return {$: 'LoginSuccess', a: a};
+};
+var $author$project$Api$SuccessDetails = function (token) {
+	return {token: token};
+};
+var $author$project$Api$decodeSuccessDetails = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$SuccessDetails,
+	A2($elm$json$Json$Decode$field, 'token', $elm$json$Json$Decode$string));
+var $author$project$Api$decodeLoginSuccess = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$LoginSuccess,
+	A2($elm$json$Json$Decode$field, 'Success', $author$project$Api$decodeSuccessDetails));
+var $author$project$Api$decodeLoginResponse = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[$author$project$Api$decodeLoginSuccess, $author$project$Api$decodeLoginFailure]));
+var $elm$json$Json$Decode$decodeString = _Json_runOnString;
+var $elm$http$Http$expectStringResponse = F2(
+	function (toMsg, toResult) {
+		return A3(
+			_Http_expect,
+			'',
+			$elm$core$Basics$identity,
+			A2($elm$core$Basics$composeR, toResult, toMsg));
+	});
+var $elm$http$Http$expectJson = F2(
+	function (toMsg, decoder) {
+		return A2(
+			$elm$http$Http$expectStringResponse,
+			toMsg,
+			$elm$http$Http$resolve(
+				function (string) {
+					return A2(
+						$elm$core$Result$mapError,
+						$elm$json$Json$Decode$errorToString,
+						A2($elm$json$Json$Decode$decodeString, decoder, string));
+				}));
+	});
+var $author$project$Api$loginEncoder = function (login) {
+	return $elm$json$Json$Encode$object(
+		_List_fromArray(
+			[
+				_Utils_Tuple2(
+				'username',
+				$elm$json$Json$Encode$string(login.username)),
+				_Utils_Tuple2(
+				'password',
+				$elm$json$Json$Encode$string(login.password))
+			]));
+};
 var $author$project$Pages$Login$attemptLogin = F2(
 	function (username, password) {
 		return $elm$http$Http$post(
@@ -6268,66 +6411,144 @@ var $author$project$Pages$Login$update = F2(
 var $author$project$Main$update = F2(
 	function (msg, model) {
 		var _v0 = _Utils_Tuple2(msg, model);
-		if ((_v0.a.$ === 'ForLogin') && (_v0.b.$ === 'OnLogin')) {
-			if (_v0.a.a.$ === 'GotLoginResponse') {
-				var subMsg = _v0.a.a;
-				var httpResponse = subMsg.a;
-				var subModel = _v0.b.a;
-				var loginSuccessModel = function () {
-					if (httpResponse.$ === 'Ok') {
-						var loginResponse = httpResponse.a;
-						if (loginResponse.$ === 'LoginSuccess') {
-							var token = loginResponse.a.token;
-							return $elm$core$Maybe$Just(
-								$author$project$Main$OnChat(
-									A2($author$project$Pages$Chat$fromTokenAndUsername, token, 'placeholder')));
+		_v0$4:
+		while (true) {
+			switch (_v0.a.$) {
+				case 'ForLogin':
+					if (_v0.b.$ === 'OnLogin') {
+						if (_v0.a.a.$ === 'GotLoginResponse') {
+							var subMsg = _v0.a.a;
+							var httpResponse = subMsg.a;
+							var subModel = _v0.b.a;
+							var loginSuccessModel = function () {
+								if (httpResponse.$ === 'Ok') {
+									var loginResponse = httpResponse.a;
+									if (loginResponse.$ === 'LoginSuccess') {
+										var token = loginResponse.a.token;
+										return $elm$core$Maybe$Just(
+											_Utils_Tuple2(
+												$author$project$Main$OnChat(
+													A2($author$project$Pages$Chat$fromTokenAndUsername, token, 'placeholder')),
+												$author$project$Main$connectToSSE(token)));
+									} else {
+										return $elm$core$Maybe$Nothing;
+									}
+								} else {
+									return $elm$core$Maybe$Nothing;
+								}
+							}();
+							if (loginSuccessModel.$ === 'Just') {
+								var _v2 = loginSuccessModel.a;
+								var chatModel = _v2.a;
+								var cmd = _v2.b;
+								return _Utils_Tuple2(chatModel, cmd);
+							} else {
+								var _v3 = A2($author$project$Pages$Login$update, subMsg, subModel);
+								var updateSubModel = _v3.a;
+								var cmd = _v3.b;
+								return _Utils_Tuple2(
+									$author$project$Main$OnLogin(updateSubModel),
+									A2($elm$core$Platform$Cmd$map, $author$project$Main$ForLogin, cmd));
+							}
 						} else {
-							return $elm$core$Maybe$Nothing;
+							var subMsg = _v0.a.a;
+							var subModel = _v0.b.a;
+							var _v6 = A2($author$project$Pages$Login$update, subMsg, subModel);
+							var updateSubModel = _v6.a;
+							var cmd = _v6.b;
+							return _Utils_Tuple2(
+								$author$project$Main$OnLogin(updateSubModel),
+								A2($elm$core$Platform$Cmd$map, $author$project$Main$ForLogin, cmd));
 						}
 					} else {
-						return $elm$core$Maybe$Nothing;
+						break _v0$4;
 					}
-				}();
-				if (loginSuccessModel.$ === 'Just') {
-					var chatModel = loginSuccessModel.a;
-					return _Utils_Tuple2(chatModel, $elm$core$Platform$Cmd$none);
-				} else {
-					var _v2 = A2($author$project$Pages$Login$update, subMsg, subModel);
-					var updateSubModel = _v2.a;
-					var cmd = _v2.b;
+				case 'Logout':
+					var _v7 = _v0.a;
 					return _Utils_Tuple2(
-						$author$project$Main$OnLogin(updateSubModel),
-						A2($elm$core$Platform$Cmd$map, $author$project$Main$ForLogin, cmd));
-				}
-			} else {
-				var subMsg = _v0.a.a;
-				var subModel = _v0.b.a;
-				var _v5 = A2($author$project$Pages$Login$update, subMsg, subModel);
-				var updateSubModel = _v5.a;
-				var cmd = _v5.b;
-				return _Utils_Tuple2(
-					$author$project$Main$OnLogin(updateSubModel),
-					A2($elm$core$Platform$Cmd$map, $author$project$Main$ForLogin, cmd));
+						$author$project$Main$OnLogin(
+							$author$project$Pages$Login$init(
+								$elm$core$Maybe$Just('You got logged out'))),
+						$author$project$Main$connectToSSE(''));
+				default:
+					if (_v0.b.$ === 'OnChat') {
+						var subMsg = _v0.a.a;
+						var subModel = _v0.b.a;
+						var _v8 = A2($author$project$Pages$Chat$update, subMsg, subModel);
+						var updateSubModel = _v8.a;
+						var cmd = _v8.b;
+						return _Utils_Tuple2(
+							$author$project$Main$OnChat(updateSubModel),
+							A2($elm$core$Platform$Cmd$map, $author$project$Main$ForChat, cmd));
+					} else {
+						break _v0$4;
+					}
 			}
-		} else {
-			return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
+		return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 	});
-var $author$project$Main$ForChat = function (a) {
-	return {$: 'ForChat', a: a};
-};
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $elm$virtual_dom$VirtualDom$map = _VirtualDom_map;
 var $elm$html$Html$map = $elm$virtual_dom$VirtualDom$map;
 var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
 var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
+var $author$project$Pages$Chat$SendAction = {$: 'SendAction'};
+var $elm$html$Html$button = _VirtualDom_node('button');
+var $author$project$Pages$Chat$eventToString = function (e) {
+	return 'HelloClient';
+};
+var $elm$html$Html$li = _VirtualDom_node('li');
+var $elm$virtual_dom$VirtualDom$Normal = function (a) {
+	return {$: 'Normal', a: a};
+};
+var $elm$virtual_dom$VirtualDom$on = _VirtualDom_on;
+var $elm$html$Html$Events$on = F2(
+	function (event, decoder) {
+		return A2(
+			$elm$virtual_dom$VirtualDom$on,
+			event,
+			$elm$virtual_dom$VirtualDom$Normal(decoder));
+	});
+var $elm$html$Html$Events$onClick = function (msg) {
+	return A2(
+		$elm$html$Html$Events$on,
+		'click',
+		$elm$json$Json$Decode$succeed(msg));
+};
+var $elm$html$Html$ul = _VirtualDom_node('ul');
 var $author$project$Pages$Chat$view = function (model) {
 	return A2(
 		$elm$html$Html$div,
 		_List_Nil,
 		_List_fromArray(
 			[
-				$elm$html$Html$text(model.currentChannel)
+				$elm$html$Html$text(model.currentChannel),
+				A2(
+				$elm$html$Html$ul,
+				_List_Nil,
+				A2(
+					$elm$core$List$map,
+					function (e) {
+						return A2(
+							$elm$html$Html$li,
+							_List_Nil,
+							_List_fromArray(
+								[
+									$elm$html$Html$text(
+									$author$project$Pages$Chat$eventToString(e))
+								]));
+					},
+					model.events)),
+				A2(
+				$elm$html$Html$button,
+				_List_fromArray(
+					[
+						$elm$html$Html$Events$onClick($author$project$Pages$Chat$SendAction)
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text('send')
+					]))
 			]));
 };
 var $author$project$Pages$Login$AttemptLogin = F2(
@@ -6340,7 +6561,6 @@ var $author$project$Pages$Login$ChangePassword = function (a) {
 var $author$project$Pages$Login$ChangeUsername = function (a) {
 	return {$: 'ChangeUsername', a: a};
 };
-var $elm$html$Html$button = _VirtualDom_node('button');
 var $elm$html$Html$input = _VirtualDom_node('input');
 var $elm$html$Html$label = _VirtualDom_node('label');
 var $elm$html$Html$Events$alwaysStop = function (x) {
@@ -6349,7 +6569,6 @@ var $elm$html$Html$Events$alwaysStop = function (x) {
 var $elm$virtual_dom$VirtualDom$MayStopPropagation = function (a) {
 	return {$: 'MayStopPropagation', a: a};
 };
-var $elm$virtual_dom$VirtualDom$on = _VirtualDom_on;
 var $elm$html$Html$Events$stopPropagationOn = F2(
 	function (event, decoder) {
 		return A2(
@@ -6409,28 +6628,21 @@ var $author$project$Pages$Login$inp = F4(
 					_List_Nil)
 				]));
 	});
-var $elm$virtual_dom$VirtualDom$Normal = function (a) {
-	return {$: 'Normal', a: a};
-};
-var $elm$html$Html$Events$on = F2(
-	function (event, decoder) {
-		return A2(
-			$elm$virtual_dom$VirtualDom$on,
-			event,
-			$elm$virtual_dom$VirtualDom$Normal(decoder));
-	});
-var $elm$html$Html$Events$onClick = function (msg) {
-	return A2(
-		$elm$html$Html$Events$on,
-		'click',
-		$elm$json$Json$Decode$succeed(msg));
-};
 var $author$project$Pages$Login$view = function (model) {
 	return A2(
 		$elm$html$Html$div,
 		_List_Nil,
 		_List_fromArray(
 			[
+				function () {
+				var _v0 = model.msg;
+				if (_v0.$ === 'Just') {
+					var msg = _v0.a;
+					return $elm$html$Html$text(msg);
+				} else {
+					return $elm$html$Html$text('');
+				}
+			}(),
 				A4($author$project$Pages$Login$inp, 'username', 'text', model.username, $author$project$Pages$Login$ChangeUsername),
 				A4($author$project$Pages$Login$inp, 'password', 'password', model.password, $author$project$Pages$Login$ChangePassword),
 				model.loading ? $elm$html$Html$text('loading') : A2(

@@ -58,3 +58,14 @@ decodeFailureDetails : Decoder FailureDetails
 decodeFailureDetails =
     Decode.map FailureDetails
         (field "msg" Decode.string)
+
+
+type alias ToBackendEnvelope =
+    { token : String }
+
+
+toBackendEnvelopeEncoder : ToBackendEnvelope -> Value
+toBackendEnvelopeEncoder be =
+    Encode.object
+        [ ( "token", Encode.string be.token )
+        ]
