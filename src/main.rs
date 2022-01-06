@@ -4,6 +4,9 @@ use sqlx::PgPool;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use warp::{Filter, Rejection, Reply};
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 #[derive(Serialize, Deserialize)]
 struct Login {
     username: String,
@@ -39,12 +42,15 @@ enum ActionResponse {
 
 struct Client {
     token: String,
-    user_id: Option<i32>,
+    user_id: i32,
 }
+
+type ClientsByToken = Arc<Mutex<HashMap<String, Client>>>;
 
 #[derive(Clone)]
 struct Env {
     pool: PgPool,
+    clientsByToken: ClientsByToken,
 }
 
 fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
@@ -61,14 +67,17 @@ async fn main() {
         .await
         .unwrap();
 
-    let env = Env { pool: pool.clone() };
+    let env = Env {
+        pool: pool.clone(),
+        clientsByToken: Arc::new(Mutex::new(HashMap::new())),
+    };
     let static_files = warp::any().and(warp::fs::dir("client"));
 
     let login = warp::path("login")
         .and(warp::body::content_length_limit(1024 * 16))
         .and(with_env(env))
         .and(warp::body::json())
-        .and_then(move |env: Env, login: Login| auth_handler(env.pool, login));
+        .and_then(move |env: Env, login: Login| auth_handler(env, login));
 
     let action = warp::path("action")
         .and(warp::any().map(move || sender.clone()))
@@ -89,23 +98,27 @@ async fn main() {
         .await;
 }
 
-async fn auth_handler(
-    ext_pool: PgPool,
-    login: Login,
-) -> std::result::Result<impl Reply, Rejection> {
+async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply, Rejection> {
     let user = sqlx::query_as::<_, User>(
         "SELECT id, username, hashed_password FROM users WHERE username = $1",
     )
     .bind(login.username)
-    .fetch_one(&ext_pool)
+    .fetch_one(&env.pool)
     .await;
 
     let login_response = match user {
         Ok(user) => {
             if user.hashed_password.eq(&login.password) {
-                LoginResponse::Success(LoginSuccessDetails {
-                    token: "aToken".to_string(),
-                })
+                let mut map = env.clientsByToken.lock().unwrap();
+                let token = "aToken".to_string();
+                let client = Client {
+                    token: token.clone(),
+                    user_id: user.id,
+                };
+
+                map.insert(token.clone(), client);
+
+                LoginResponse::Success(LoginSuccessDetails { token })
             } else {
                 LoginResponse::Failure(LoginFailureDetails {
                     msg: "wrong pw".to_string(),
