@@ -194,7 +194,12 @@ async fn event_handler(token: String, env: Env) -> std::result::Result<impl Repl
     if let Some(client) = clients_by_token.get(&token) {
         // logout previously registered client
         if let Some(sender) = &client.sender {
-            sender.send(ToClientEnvelope::SuperSeeded()).unwrap();
+            if let Err(someError) = sender.send(ToClientEnvelope::SuperSeeded()) {
+                println!(
+                    "Can't send SuperSeed but it doesn't matter really {:?}",
+                    someError
+                );
+            }
         }
         //
         // Use an unbounded channel to handle buffering and flushing of messages
