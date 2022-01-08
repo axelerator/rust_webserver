@@ -19,6 +19,7 @@ use warp::sse::Event;
 use uuid::Uuid;
 
 use app::{init_model, Model, RocketJamApp, ToBackend, ToClient};
+use log::{info, warn};
 
 #[derive(Serialize, Deserialize)]
 struct Login {
@@ -88,6 +89,7 @@ fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Inf
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let be = ToBackendEnvelope {
         token: "aToken".to_string(),
         to_backend: ToBackend::StartGame,
@@ -137,13 +139,27 @@ async fn main() {
                     let senders_for_user = clients_by_token
                         .values()
                         .filter(|c| c.user_id == user_id)
-                        .map(|c| &c.sender)
+                        .map(|c| match &c.sender {
+                            Some(sender) => Some((&c.token, sender)),
+                            None => None,
+                        })
                         .flatten();
-                    for sender in senders_for_user {
+                    if senders_for_user.clone().count().eq(&0) {
+                        warn!(
+                            "No clients for user {:?} to send response to",
+                            &client.user_id
+                        );
+                    }
+
+                    senders_for_user.for_each(|(token, sender)| {
+                        info!(
+                            "Sending to client {:?} ({:?}: {:?})",
+                            &token, &user_id, &to_client
+                        );
                         sender
                             .send(ToClientEnvelope::AppMsg(to_client.clone()))
                             .expect("Could not send msg to client");
-                    }
+                    });
                 }
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
@@ -199,6 +215,7 @@ async fn action_handler(
     sender: SyncSender<ToBackendEnvelope>,
     action: ToBackendEnvelope,
 ) -> std::result::Result<impl Reply, Rejection> {
+    info!("Received action {:?}", action);
     sender.send(action.clone()).unwrap();
     Ok(warp::reply::json(&action))
 }
