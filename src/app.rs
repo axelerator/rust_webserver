@@ -23,6 +23,7 @@ pub enum ToBackend {
     Ready,
     ChangeSetting,
     GetAvailableRounds,
+    JoinGame { round_id: RoundId },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

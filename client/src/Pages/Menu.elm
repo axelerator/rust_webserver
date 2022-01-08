@@ -56,7 +56,7 @@ fromBackend toClient model =
 view { roundIds } =
     let
         mkJoinRound roundId =
-            li [] [ button [] [ text <| "join " ++ roundId ] ]
+            li [] [ button [ onClick <| SendAction <| JoinGame roundId ] [ text <| "join " ++ roundId ] ]
     in
     div []
         [ text "menu"

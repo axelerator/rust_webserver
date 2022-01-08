@@ -92,7 +92,9 @@ async fn main() {
     env_logger::init();
     let be = ToBackendEnvelope {
         token: "aToken".to_string(),
-        to_backend: ToBackend::StartGame,
+        to_backend: ToBackend::JoinGame {
+            round_id: "foo".to_string(),
+        },
     };
     let v = serde_json::to_string(&be);
     println!("json {:?}", v);

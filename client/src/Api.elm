@@ -66,6 +66,7 @@ type ToBackend
     | Ready
     | ChangeSetting
     | GetAvailableRounds
+    | JoinGame RoundId
 
 
 type alias ToBackendEnvelope =
@@ -78,24 +79,29 @@ toBackendEnvelopeEncoder : ToBackendEnvelope -> Value
 toBackendEnvelopeEncoder be =
     Encode.object
         [ ( "token", Encode.string be.token )
-        , ( "to_backend", Encode.string <| toBackendFieldName be.toBackend )
+        , ( "to_backend", encodeToBackend be.toBackend )
         ]
 
 
-toBackendFieldName : ToBackend -> String
-toBackendFieldName tb =
+encodeToBackend : ToBackend -> Value
+encodeToBackend tb =
     case tb of
         StartGame ->
-            "StartGame"
+            Encode.string "StartGame"
 
         Ready ->
-            "Ready"
+            Encode.string "Ready"
 
         ChangeSetting ->
-            "ChangeSetting"
+            Encode.string "ChangeSetting"
 
         GetAvailableRounds ->
-            "GetAvailableRounds"
+            Encode.string "GetAvailableRounds"
+
+        JoinGame roundId ->
+            Encode.object
+                [ ( "JoinGame", Encode.object [ ( "round_id", Encode.string roundId ) ] )
+                ]
 
 
 type ClientState

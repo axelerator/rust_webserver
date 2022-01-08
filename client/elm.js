@@ -6352,16 +6352,31 @@ var $elm$json$Json$Encode$object = function (pairs) {
 			_Json_emptyObject(_Utils_Tuple0),
 			pairs));
 };
-var $author$project$Api$toBackendFieldName = function (tb) {
+var $author$project$Api$encodeToBackend = function (tb) {
 	switch (tb.$) {
 		case 'StartGame':
-			return 'StartGame';
+			return $elm$json$Json$Encode$string('StartGame');
 		case 'Ready':
-			return 'Ready';
+			return $elm$json$Json$Encode$string('Ready');
 		case 'ChangeSetting':
-			return 'ChangeSetting';
+			return $elm$json$Json$Encode$string('ChangeSetting');
+		case 'GetAvailableRounds':
+			return $elm$json$Json$Encode$string('GetAvailableRounds');
 		default:
-			return 'GetAvailableRounds';
+			var roundId = tb.a;
+			return $elm$json$Json$Encode$object(
+				_List_fromArray(
+					[
+						_Utils_Tuple2(
+						'JoinGame',
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'round_id',
+									$elm$json$Json$Encode$string(roundId))
+								])))
+					]));
 	}
 };
 var $author$project$Api$toBackendEnvelopeEncoder = function (be) {
@@ -6373,8 +6388,7 @@ var $author$project$Api$toBackendEnvelopeEncoder = function (be) {
 				$elm$json$Json$Encode$string(be.token)),
 				_Utils_Tuple2(
 				'to_backend',
-				$elm$json$Json$Encode$string(
-					$author$project$Api$toBackendFieldName(be.toBackend)))
+				$author$project$Api$encodeToBackend(be.toBackend))
 			]));
 };
 var $author$project$Pages$Chat$sendAction = F2(
@@ -6893,6 +6907,9 @@ var $author$project$Pages$Login$view = function (model) {
 			]));
 };
 var $author$project$Api$GetAvailableRounds = {$: 'GetAvailableRounds'};
+var $author$project$Api$JoinGame = function (a) {
+	return {$: 'JoinGame', a: a};
+};
 var $author$project$Pages$Menu$SendAction = function (a) {
 	return {$: 'SendAction', a: a};
 };
@@ -6907,7 +6924,12 @@ var $author$project$Pages$Menu$view = function (_v0) {
 				[
 					A2(
 					$elm$html$Html$button,
-					_List_Nil,
+					_List_fromArray(
+						[
+							$elm$html$Html$Events$onClick(
+							$author$project$Pages$Menu$SendAction(
+								$author$project$Api$JoinGame(roundId)))
+						]),
 					_List_fromArray(
 						[
 							$elm$html$Html$text('join ' + roundId)
