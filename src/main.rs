@@ -1,3 +1,5 @@
+mod app;
+
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -6,7 +8,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use warp::{Filter, Rejection, Reply};
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use futures_util::StreamExt;
 
@@ -14,6 +16,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::sse::Event;
 
 use uuid::Uuid;
+
+use app::{init_model, Model, RocketJamApp, ToBackend, ToClient};
 
 #[derive(Serialize, Deserialize)]
 struct Login {
@@ -41,6 +45,7 @@ struct LoginFailureDetails {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct ToBackendEnvelope {
     token: String,
+    to_backend: ToBackend,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -61,7 +66,7 @@ struct Client {
     sender: Option<UnboundedSender<ToClientEnvelope>>,
 }
 
-type ClientsByToken = Arc<Mutex<HashMap<String, Client>>>;
+type ClientsByToken = Arc<RwLock<HashMap<String, Client>>>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 enum ToClientEnvelope {
@@ -69,15 +74,11 @@ enum ToClientEnvelope {
     AppMsg(ToClient),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-enum ToClient {
-    HelloClient,
-}
-
 #[derive(Clone)]
 struct Env {
     pool: PgPool,
     clients_by_token: ClientsByToken,
+    model: Arc<RwLock<Model>>,
 }
 
 fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
@@ -96,7 +97,8 @@ async fn main() {
 
     let env = Env {
         pool: pool.clone(),
-        clients_by_token: Arc::new(Mutex::new(HashMap::new())),
+        clients_by_token: Arc::new(RwLock::new(HashMap::new())),
+        model: Arc::new(RwLock::new(init_model())),
     };
     let static_files = warp::any().and(warp::fs::dir("client"));
 
@@ -119,20 +121,10 @@ async fn main() {
     let get_routes = warp::get().and(event_route);
     std::thread::spawn(move || {
         for action in receiver.iter() {
-            let clients_by_token = env.clients_by_token.lock().unwrap();
+            let clients_by_token = env.clients_by_token.read().unwrap();
             if let Some(client) = clients_by_token.get(&action.token) {
-                println!("Action {:?}", action);
-                if let Some(sender) = &client.sender {
-                    sender
-                        .send(ToClientEnvelope::AppMsg(ToClient::HelloClient))
-                        .unwrap();
-                } else {
-                    println!("client has no sender");
-                }
-            } else {
-                println!("No client found for token {:?}", &action.token);
+                RocketJamApp::update(client.user_id, &env.model, action.to_backend);
             }
-
             std::thread::sleep(std::time::Duration::from_millis(1000));
         }
     });
@@ -153,7 +145,8 @@ async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply,
     let login_response = match user {
         Ok(user) => {
             if user.hashed_password.eq(&login.password) {
-                let mut map = env.clients_by_token.lock().unwrap();
+                //let mut map = env.clients_by_token.lock().unwrap();
+                let mut map = env.clients_by_token.write().expect("RwLock poisoned");
                 let token = Uuid::new_v4();
 
                 let client = Client {
@@ -190,14 +183,14 @@ async fn action_handler(
 }
 
 async fn event_handler(token: String, env: Env) -> std::result::Result<impl Reply, Rejection> {
-    let mut clients_by_token = env.clients_by_token.lock().unwrap();
+    let mut clients_by_token = env.clients_by_token.write().unwrap();
     if let Some(client) = clients_by_token.get(&token) {
         // logout previously registered client
         if let Some(sender) = &client.sender {
-            if let Err(someError) = sender.send(ToClientEnvelope::SuperSeeded()) {
+            if let Err(some_error) = sender.send(ToClientEnvelope::SuperSeeded()) {
                 println!(
                     "Can't send SuperSeed but it doesn't matter really {:?}",
-                    someError
+                    some_error
                 );
             }
         }
