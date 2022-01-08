@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::RwLock};
 
+use log::{error, warn};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,6 +16,7 @@ pub enum ToClient {
     HelloClient,
     UpdateGameState { client_state: ClientState },
     AvailableRounds { round_ids: Vec<RoundId> },
+    EnterRound { client_state: ClientState },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -123,10 +125,75 @@ impl RocketJamApp {
             return match msg {
                 ToBackend::StartGame => start_game(user_id, model),
                 ToBackend::GetAvailableRounds => get_available_rounds(user_id, model),
+                ToBackend::JoinGame { round_id } => join_game(user_id, &round_id, model),
                 _ => vec![],
             };
         }
         vec![]
+    }
+}
+
+fn join_game(user_id: UserId, round_id: &RoundId, model: &RwLock<Model>) -> Vec<ClientMessage> {
+    let round = find_round_by_id(round_id, model);
+    match round {
+        Some(round) => {
+            let other_players = round.players.iter();
+
+            let mut players = round.players.to_vec();
+            players.push(user_id);
+            let round_with_user = RocketJamRound {
+                players,
+                ..round.clone()
+            };
+
+            let client_state = client_state_for_user(user_id, &round_with_user);
+            let mut model = model.write().unwrap();
+            let round_id = &round_with_user.id;
+            model
+                .games_by_id
+                .insert(round_id.to_string(), round_with_user.clone());
+            model
+                .game_ids_by_user_id
+                .insert(user_id, round_id.to_string());
+            drop(model); // release lock asap
+            match client_state {
+                Some(client_state) => other_players
+                    .into_iter()
+                    .map(|user_id| {
+                        (
+                            user_id,
+                            client_state_for_user(user_id.clone(), &round_with_user),
+                        )
+                    })
+                    .map(|(user_id, client_state)| match client_state {
+                        Some(client_state) => {
+                            Some((*user_id, ToClient::UpdateGameState { client_state }))
+                        }
+                        None => None,
+                    })
+                    .flatten()
+                    .chain(vec![(user_id, ToClient::EnterRound { client_state })])
+                    .collect(),
+                None => {
+                    error!(
+                        "couldn't generate client state for user {:?} when joining game {:?}",
+                        &user_id, &round_id
+                    );
+                    vec![]
+                }
+            }
+        }
+        None => {
+            warn!("round {:?} not found", &round_id);
+            vec![]
+        }
+    }
+}
+
+fn find_round_by_id(round_id: &RoundId, model: &RwLock<Model>) -> Option<RocketJamRound> {
+    match model.read().unwrap().games_by_id.get(round_id) {
+        Some(round) => Some(round.clone()),
+        None => None,
     }
 }
 
@@ -157,7 +224,7 @@ fn start_game(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
         .games_by_id
         .insert(new_round.id.to_string(), new_round.clone());
     if let Some(client_state) = client_state_for_user(user_id, &new_round) {
-        return vec![(user_id, ToClient::UpdateGameState { client_state })];
+        return vec![(user_id, ToClient::EnterRound { client_state })];
     }
     vec![]
 }

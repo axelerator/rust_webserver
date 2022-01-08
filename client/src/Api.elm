@@ -172,6 +172,7 @@ type ToClient
     = HelloClient
     | UpdateGameState UpdateGameStateDetails
     | AvailableRounds AvailableRoundsDetails
+    | EnterRound UpdateGameStateDetails
 
 
 type alias AvailableRoundsDetails =
@@ -179,7 +180,7 @@ type alias AvailableRoundsDetails =
 
 
 type alias UpdateGameStateDetails =
-    { client_state : ClientState }
+    { clientState : ClientState }
 
 
 eventDecoder : Decoder ToClientEnvelope
@@ -202,7 +203,7 @@ appMsgDecoder =
 
 toClientDecoder : Decoder ToClient
 toClientDecoder =
-    Decode.oneOf [ decodeHelloClient, decodeUpdateGameState, decodeAvailableRounds ]
+    Decode.oneOf [ decodeHelloClient, decodeUpdateGameState, decodeAvailableRounds, decodeEnterRound ]
 
 
 decodeHelloClient : Decoder ToClient
@@ -228,6 +229,17 @@ decodeUpdateGameState =
     in
     Decode.map UpdateGameState
         (field "UpdateGameState" updateGameStateDetailsDecoder)
+
+
+decodeEnterRound : Decoder ToClient
+decodeEnterRound =
+    let
+        updateGameStateDetailsDecoder =
+            Decode.map UpdateGameStateDetails
+                (field "client_state" decodeClientState)
+    in
+    Decode.map EnterRound
+        (field "EnterRound" updateGameStateDetailsDecoder)
 
 
 decodeAvailableRounds : Decoder ToClient

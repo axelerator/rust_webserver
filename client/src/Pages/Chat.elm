@@ -1,4 +1,4 @@
-module Pages.Chat exposing (Model, Msg, fromTokenAndUsername, init, mapEvent, update, view)
+module Pages.Chat exposing (Model, Msg, fromEnterRound, fromTokenAndUsername, mapEvent, update, view)
 
 import Api exposing (ClientState(..), LobbyDetails, ToBackend(..), ToClient(..), ToClientEnvelope(..), eventDecoder)
 import Html exposing (Html, button, div, li, text, ul)
@@ -25,6 +25,15 @@ fromTokenAndUsername token username =
         }
     , events = []
     , clientState = Nothing
+    }
+
+
+fromEnterRound : Session -> ClientState -> Model
+fromEnterRound session clientState =
+    { currentChannel = "a channel name"
+    , session = session
+    , events = []
+    , clientState = Just clientState
     }
 
 
@@ -59,10 +68,10 @@ update msg model =
 
         GotEvent e ->
             let
-                clientState =
+                newClientState =
                     case e of
-                        UpdateGameState { client_state } ->
-                            Just client_state
+                        UpdateGameState { clientState } ->
+                            Just clientState
 
                         _ ->
                             model.clientState
@@ -70,7 +79,7 @@ update msg model =
                 model_ =
                     { model
                         | events = e :: model.events
-                        , clientState = clientState
+                        , clientState = newClientState
                     }
             in
             ( model_, Cmd.none )
@@ -88,10 +97,6 @@ sendAction token toBackend =
         }
 
 
-init =
-    { currentChannel = "Home" }
-
-
 eventToString e =
     case e of
         HelloClient ->
@@ -102,6 +107,9 @@ eventToString e =
 
         AvailableRounds _ ->
             "AvailableRounds"
+
+        EnterRound _ ->
+            "EnterRound"
 
 
 view : Model -> Html Msg

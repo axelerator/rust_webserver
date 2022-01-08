@@ -1,6 +1,6 @@
 port module Main exposing (..)
 
-import Api
+import Api exposing (ClientState, ToClient(..))
 import Browser
 import Html exposing (Html, button, div, input, span, text)
 import Html.Events exposing (onClick)
@@ -57,11 +57,15 @@ type Msg
     | ForChat Chat.Msg
     | ForMenu Menu.Msg
     | Logout
+    | SwitchToOnChat ClientState
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case ( msg, model ) of
+        ( SwitchToOnChat clientState, OnMenu { session } ) ->
+            ( OnChat (Chat.fromEnterRound session clientState), Cmd.none )
+
         ( ForLogin ((Login.GotLoginResponse httpResponse) as subMsg), OnLogin subModel ) ->
             let
                 loginSuccessModel =
@@ -153,7 +157,12 @@ subscriptions model =
                 decode value =
                     case Decode.decodeValue Api.eventDecoder value of
                         Ok (Api.AppMsg event) ->
-                            ForMenu <| Menu.gotEvent event
+                            case event of
+                                EnterRound x ->
+                                    SwitchToOnChat x.clientState
+
+                                _ ->
+                                    ForMenu <| Menu.gotEvent event
 
                         e ->
                             -- a bit extreme :-p needs proper error handling
