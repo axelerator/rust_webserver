@@ -6,15 +6,15 @@ use uuid::Uuid;
 type UserId = i32;
 
 pub struct Model {
-    pub games_by_id: HashMap<GameId, RocketJamRound>,
-    pub game_ids_by_user_id: HashMap<UserId, GameId>,
+    pub games_by_id: HashMap<RoundId, RocketJamRound>,
+    pub game_ids_by_user_id: HashMap<UserId, RoundId>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ToClient {
     HelloClient,
     UpdateGameState { client_state: ClientState },
-    AvailableRounds { round_ids: Vec<GameId> },
+    AvailableRounds { round_ids: Vec<RoundId> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -103,7 +103,7 @@ pub fn init_rocket_jam(user_id: UserId) -> RocketJamRound {
     }
 }
 
-pub type GameId = String;
+pub type RoundId = String;
 
 pub struct RocketJamApp {}
 
