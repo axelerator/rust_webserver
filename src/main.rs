@@ -1,6 +1,7 @@
 mod app;
 
 use serde::{Deserialize, Serialize};
+use serde_json;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::sync::mpsc::{sync_channel, SyncSender};
@@ -87,6 +88,13 @@ fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Inf
 
 #[tokio::main]
 async fn main() {
+    let be = ToBackendEnvelope {
+        token: "aToken".to_string(),
+        to_backend: ToBackend::StartGame,
+    };
+    let v = serde_json::to_string(&be);
+    println!("json {:?}", v);
+
     let (sender, receiver) = sync_channel::<ToBackendEnvelope>(3);
 
     let pool = PgPoolOptions::new()
@@ -123,7 +131,20 @@ async fn main() {
         for action in receiver.iter() {
             let clients_by_token = env.clients_by_token.read().unwrap();
             if let Some(client) = clients_by_token.get(&action.token) {
-                RocketJamApp::update(client.user_id, &env.model, action.to_backend);
+                let to_clients =
+                    RocketJamApp::update(client.user_id, &env.model, action.to_backend);
+                for (user_id, to_client) in to_clients {
+                    let senders_for_user = clients_by_token
+                        .values()
+                        .filter(|c| c.user_id == user_id)
+                        .map(|c| &c.sender)
+                        .flatten();
+                    for sender in senders_for_user {
+                        sender
+                            .send(ToClientEnvelope::AppMsg(to_client.clone()))
+                            .expect("Could not send msg to client");
+                    }
+                }
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
         }

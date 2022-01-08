@@ -14,6 +14,7 @@ pub struct Model {
 pub enum ToClient {
     HelloClient,
     UpdateGameState { client_state: ClientState },
+    AvailableRounds { round_ids: Vec<GameId> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -21,6 +22,7 @@ pub enum ToBackend {
     StartGame,
     Ready,
     ChangeSetting,
+    GetAvailableRounds,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -117,22 +119,46 @@ impl RocketJamApp {
                 .games_by_id
                 .insert(round_id.to_string(), updated_round);
         } else {
-            if let ToBackend::StartGame = msg {
-                let new_round = init_rocket_jam(user_id);
-                let mut model = model.write().unwrap();
-                model
-                    .game_ids_by_user_id
-                    .insert(user_id, new_round.id.to_string());
-                model
-                    .games_by_id
-                    .insert(new_round.id.to_string(), new_round.clone());
-                if let Some(client_state) = client_state_for_user(user_id, &new_round) {
-                    return vec![(user_id, ToClient::UpdateGameState { client_state })];
-                }
-            }
+            return match msg {
+                ToBackend::StartGame => start_game(user_id, model),
+                ToBackend::GetAvailableRounds => get_available_rounds(user_id, model),
+                _ => vec![],
+            };
         }
         vec![]
     }
+}
+
+fn get_available_rounds(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
+    let model = model.read().unwrap();
+    let round_ids: Vec<String> = model
+        .games_by_id
+        .values()
+        .filter(|round| {
+            if let RocketJam::InLobby { .. } = round.game {
+                true
+            } else {
+                false
+            }
+        })
+        .map(|round| round.id.to_string())
+        .collect();
+    vec![(user_id, ToClient::AvailableRounds { round_ids })]
+}
+
+fn start_game(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
+    let new_round = init_rocket_jam(user_id);
+    let mut model = model.write().unwrap();
+    model
+        .game_ids_by_user_id
+        .insert(user_id, new_round.id.to_string());
+    model
+        .games_by_id
+        .insert(new_round.id.to_string(), new_round.clone());
+    if let Some(client_state) = client_state_for_user(user_id, &new_round) {
+        return vec![(user_id, ToClient::UpdateGameState { client_state })];
+    }
+    vec![]
 }
 
 fn find_game_by_user_id(user_id: &UserId, model: &RwLock<Model>) -> Option<RocketJamRound> {

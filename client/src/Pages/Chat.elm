@@ -1,6 +1,6 @@
 module Pages.Chat exposing (Model, Msg, fromTokenAndUsername, init, mapEvent, update, view)
 
-import Api
+import Api exposing (ClientState(..), LobbyDetails, ToBackend(..), ToClient(..), ToClientEnvelope(..), eventDecoder)
 import Html exposing (Html, button, div, li, text, ul)
 import Html.Events exposing (onClick)
 import Http
@@ -13,6 +13,7 @@ type alias Model =
     { currentChannel : String
     , session : Session
     , events : List ToClient
+    , clientState : Maybe ClientState
     }
 
 
@@ -23,16 +24,8 @@ fromTokenAndUsername token username =
         , token = token
         }
     , events = []
+    , clientState = Nothing
     }
-
-
-type ToClientEnvelope
-    = SuperSeeded
-    | AppMsg ToClient
-
-
-type ToClient
-    = HelloClient
 
 
 mapEvent : Value -> Maybe Msg
@@ -48,43 +41,11 @@ mapEvent value =
             Just <| EventDecoderError <| Decode.errorToString error
 
 
-eventDecoder : Decoder ToClientEnvelope
-eventDecoder =
-    Decode.oneOf [ superSeededDecoder, appMsgDecoder ]
-
-
-superSeededDecoder : Decoder ToClientEnvelope
-superSeededDecoder =
-    Decode.field "SuperSeeded" (Decode.list Decode.string)
-        |> Decode.andThen
-            (\_ -> Decode.succeed SuperSeeded)
-
-
-appMsgDecoder : Decoder ToClientEnvelope
-appMsgDecoder =
-    Decode.map AppMsg
-        (Decode.field "AppMsg" toClientDecoder)
-
-
-toClientDecoder : Decoder ToClient
-toClientDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\s ->
-                case s of
-                    "HelloClient" ->
-                        Decode.succeed HelloClient
-
-                    _ ->
-                        Decode.fail <| "Unkown ToClient: " ++ s
-            )
-
-
 type Msg
     = NoOp
     | EventDecoderError String
     | GotEvent ToClient
-    | SendAction
+    | SendAction ToBackend
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -97,17 +58,32 @@ update msg model =
             ( Debug.log e model, Cmd.none )
 
         GotEvent e ->
-            ( { model | events = e :: model.events }, Cmd.none )
+            let
+                clientState =
+                    case e of
+                        UpdateGameState { client_state } ->
+                            Just client_state
 
-        SendAction ->
-            ( model, sendAction model.session.token )
+                        _ ->
+                            model.clientState
+
+                model_ =
+                    { model
+                        | events = e :: model.events
+                        , clientState = clientState
+                    }
+            in
+            ( model_, Cmd.none )
+
+        SendAction toBackend ->
+            ( model, sendAction model.session.token toBackend )
 
 
-sendAction : String -> Cmd Msg
-sendAction token =
+sendAction : String -> ToBackend -> Cmd Msg
+sendAction token toBackend =
     Http.post
         { url = "/action"
-        , body = Http.jsonBody <| Api.toBackendEnvelopeEncoder { token = token }
+        , body = Http.jsonBody <| Api.toBackendEnvelopeEncoder { token = token, toBackend = toBackend }
         , expect = Http.expectWhatever (\_ -> NoOp)
         }
 
@@ -121,11 +97,37 @@ eventToString e =
         HelloClient ->
             "HelloClient"
 
+        UpdateGameState _ ->
+            "UpdateGameState"
+
+        AvailableRounds _ ->
+            "AvailableRounds"
+
 
 view : Model -> Html Msg
 view model =
     div []
         [ text model.currentChannel
         , ul [] <| List.map (\e -> li [] [ text <| eventToString e ]) model.events
-        , button [ onClick SendAction ] [ text "send" ]
+        , case model.clientState of
+            Nothing ->
+                text "waiting"
+
+            Just state ->
+                viewGame state
         ]
+
+
+viewGame state =
+    case state of
+        Lobby { playerCount, playerReadyCount } ->
+            div []
+                [ text "players "
+                , text <| String.fromInt playerReadyCount
+                , text " of "
+                , text <| String.fromInt playerCount
+                , text " are ready"
+                ]
+
+        InLevel { currentInstruction } ->
+            div [] [ text currentInstruction ]

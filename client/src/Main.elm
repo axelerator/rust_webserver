@@ -4,9 +4,11 @@ import Api
 import Browser
 import Html exposing (Html, button, div, input, span, text)
 import Html.Events exposing (onClick)
+import Json.Decode as Decode
 import Json.Encode exposing (Value)
 import Pages.Chat as Chat
 import Pages.Login as Login
+import Pages.Menu as Menu
 import String exposing (fromInt)
 
 
@@ -36,6 +38,7 @@ main =
 type Model
     = OnLogin Login.Model
     | OnChat Chat.Model
+    | OnMenu Menu.Model
 
 
 init : () -> ( Model, Cmd Msg )
@@ -52,6 +55,7 @@ init _ =
 type Msg
     = ForLogin Login.Msg
     | ForChat Chat.Msg
+    | ForMenu Menu.Msg
     | Logout
 
 
@@ -64,10 +68,10 @@ update msg model =
                     case httpResponse of
                         Ok loginResponse ->
                             case loginResponse of
-                                Api.LoginSuccess { token } ->
+                                Api.LoginSuccess sessionData ->
                                     Just
-                                        ( OnChat <| Chat.fromTokenAndUsername token "placeholder"
-                                        , connectToSSE token
+                                        ( OnMenu <| Menu.init sessionData
+                                        , connectToSSE sessionData.token
                                         )
 
                                 _ ->
@@ -112,6 +116,15 @@ update msg model =
             , Cmd.map ForChat cmd
             )
 
+        ( ForMenu subMsg, OnMenu subModel ) ->
+            let
+                ( updateSubModel, cmd ) =
+                    Menu.update subMsg subModel
+            in
+            ( OnMenu updateSubModel
+            , Cmd.map ForMenu cmd
+            )
+
         _ ->
             ( model, Cmd.none )
 
@@ -131,7 +144,29 @@ subscriptions model =
                 Nothing ->
                     Logout
     in
-    toClientEvent msg
+    case model of
+        OnChat _ ->
+            toClientEvent msg
+
+        OnMenu _ ->
+            let
+                decode value =
+                    case Decode.decodeValue Api.eventDecoder value of
+                        Ok (Api.AppMsg event) ->
+                            ForMenu <| Menu.gotEvent event
+
+                        e ->
+                            -- a bit extreme :-p needs proper error handling
+                            let
+                                _ =
+                                    Debug.log "something went wrong " e
+                            in
+                            Logout
+            in
+            toClientEvent decode
+
+        _ ->
+            Sub.none
 
 
 
@@ -148,4 +183,7 @@ view model =
 
             OnChat subModel ->
                 Html.map ForChat <| Chat.view subModel
+
+            OnMenu subModel ->
+                Html.map ForMenu <| Menu.view subModel
         ]

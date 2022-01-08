@@ -10,7 +10,7 @@ function loadElm() {
 // empty token means -> disconnect
 function connectToSSE(token) {
   if (token == "") {
-    console.log("Closing connection", e);
+    console.log("Closing connection");
     window.evtSource.close();
   } else {
     const evtSource = new EventSource("/events/" + token, { withCredentials: true })
