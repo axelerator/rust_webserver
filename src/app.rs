@@ -32,20 +32,21 @@ pub enum ToClient {
 pub enum ToBackend {
     StartGame,
     ToggleReady,
-    ChangeSetting,
+    ChangeSetting { item_id: ItemId },
     GetAvailableRounds,
     JoinGame { round_id: RoundId },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum RocketJam {
-    InLobby {
-        players_ready: Vec<UserId>,
-    },
-    InLevel {
-        available_items: Vec<(ItemId, String)>,
-        items: Vec<Item>,
-    },
+    InLobby { players_ready: Vec<UserId> },
+    InLevel(RoundState),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RoundState {
+    available_items: Vec<(ItemId, String)>,
+    items: Vec<Item>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -78,6 +79,7 @@ pub enum ClientState {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ClientUiItem {
+    id: ItemId,
     label: String,
     state: bool,
 }
@@ -89,7 +91,7 @@ fn client_state_for_user(user_id: UserId, round: &RocketJamRound) -> Option<Clie
             player_ready_count: players_ready.len(),
         }),
 
-        RocketJam::InLevel { items, .. } => level_for_user(user_id, items),
+        RocketJam::InLevel(game_state) => level_for_user(user_id, &game_state.items),
     }
 }
 
@@ -98,6 +100,7 @@ fn level_for_user(user_id: UserId, items: &Vec<Item>) -> Option<ClientState> {
         .iter()
         .filter(|i| i.user_id.eq(&user_id))
         .map(|i| ClientUiItem {
+            id: i.id,
             label: i.label.clone(),
             state: i.state,
         })
@@ -274,7 +277,42 @@ fn update_round(user_id: UserId, round: &RocketJamRound, msg: &ToBackend) -> Roc
         (ToBackend::ToggleReady, RocketJam::InLobby { players_ready }) => {
             toggle_ready(user_id, players_ready, round)
         }
+        (ToBackend::ChangeSetting { item_id }, RocketJam::InLevel(game_state)) => {
+            change_setting(user_id, *item_id, game_state, round)
+        }
+
         _ => round.clone(),
+    }
+}
+
+fn change_setting(
+    user_id: UserId,
+    item_id: ItemId,
+    round_state: &RoundState,
+    round: &RocketJamRound,
+) -> RocketJamRound {
+    let items = round_state
+        .items
+        .iter()
+        .map(|item| {
+            if item.id == item_id && item.user_id == user_id {
+                Item {
+                    state: !item.state,
+                    ..item.clone()
+                }
+            } else {
+                item.clone()
+            }
+        })
+        .collect();
+    let new_round_state = RoundState {
+        items,
+        ..round_state.clone()
+    };
+    let game = RocketJam::InLevel(new_round_state);
+    RocketJamRound {
+        game,
+        ..round.clone()
     }
 }
 
@@ -311,10 +349,10 @@ fn toggle_ready(
                 .map(|user_id| mk_item(user_id, &mut available_items))
                 .flatten()
                 .collect();
-            let game = RocketJam::InLevel {
+            let game = RocketJam::InLevel(RoundState {
                 items,
                 available_items,
-            };
+            });
             RocketJamRound {
                 game,
                 ..round.clone()

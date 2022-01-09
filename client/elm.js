@@ -5382,14 +5382,17 @@ var $author$project$Api$InLevelDetails = F2(
 	function (currentInstruction, uiItems) {
 		return {currentInstruction: currentInstruction, uiItems: uiItems};
 	});
-var $author$project$Api$UiItem = F2(
-	function (label, state) {
-		return {label: label, state: state};
+var $author$project$Api$UiItem = F3(
+	function (id, label, state) {
+		return {id: id, label: label, state: state};
 	});
 var $elm$json$Json$Decode$bool = _Json_decodeBool;
-var $author$project$Api$decodeUiItem = A3(
-	$elm$json$Json$Decode$map2,
+var $elm$json$Json$Decode$int = _Json_decodeInt;
+var $elm$json$Json$Decode$map3 = _Json_map3;
+var $author$project$Api$decodeUiItem = A4(
+	$elm$json$Json$Decode$map3,
 	$author$project$Api$UiItem,
+	A2($elm$json$Json$Decode$field, 'id', $elm$json$Json$Decode$int),
 	A2($elm$json$Json$Decode$field, 'label', $elm$json$Json$Decode$string),
 	A2($elm$json$Json$Decode$field, 'state', $elm$json$Json$Decode$bool));
 var $author$project$Api$decodeInLevel = function () {
@@ -5413,7 +5416,6 @@ var $author$project$Api$LobbyDetails = F2(
 	function (playerCount, playerReadyCount) {
 		return {playerCount: playerCount, playerReadyCount: playerReadyCount};
 	});
-var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $author$project$Api$decodeInLobby = function () {
 	var details = A3(
 		$elm$json$Json$Decode$map2,
@@ -6524,6 +6526,7 @@ var $elm$http$Http$expectWhatever = function (toMsg) {
 				return $elm$core$Result$Ok(_Utils_Tuple0);
 			}));
 };
+var $elm$json$Json$Encode$int = _Json_wrap;
 var $author$project$Api$encodeToBackend = function (tb) {
 	switch (tb.$) {
 		case 'StartGame':
@@ -6531,7 +6534,20 @@ var $author$project$Api$encodeToBackend = function (tb) {
 		case 'ToggleReady':
 			return $elm$json$Json$Encode$string('ToggleReady');
 		case 'ChangeSetting':
-			return $elm$json$Json$Encode$string('ChangeSetting');
+			var item_id = tb.a;
+			return $elm$json$Json$Encode$object(
+				_List_fromArray(
+					[
+						_Utils_Tuple2(
+						'ChangeSetting',
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'item_id',
+									$elm$json$Json$Encode$int(item_id))
+								])))
+					]));
 		case 'GetAvailableRounds':
 			return $elm$json$Json$Encode$string('GetAvailableRounds');
 		default:
@@ -6951,6 +6967,9 @@ var $author$project$Pages$Round$eventToString = function (e) {
 			return 'EnterRound';
 	}
 };
+var $author$project$Api$ChangeSetting = function (a) {
+	return {$: 'ChangeSetting', a: a};
+};
 var $author$project$Pages$Round$SendAction = function (a) {
 	return {$: 'SendAction', a: a};
 };
@@ -6989,6 +7008,7 @@ var $author$project$Pages$Round$viewGame = function (client_state) {
 		var mkUiItem = function (_v1) {
 			var label = _v1.label;
 			var state = _v1.state;
+			var id = _v1.id;
 			return A2(
 				$elm$html$Html$li,
 				_List_Nil,
@@ -6998,7 +7018,12 @@ var $author$project$Pages$Round$viewGame = function (client_state) {
 						$elm$html$Html$text(' is '),
 						A2(
 						$elm$html$Html$button,
-						_List_Nil,
+						_List_fromArray(
+							[
+								$elm$html$Html$Events$onClick(
+								$author$project$Pages$Round$SendAction(
+									$author$project$Api$ChangeSetting(id)))
+							]),
 						_List_fromArray(
 							[
 								$elm$html$Html$text(

@@ -64,7 +64,7 @@ decodeFailureDetails =
 type ToBackend
     = StartGame
     | ToggleReady
-    | ChangeSetting
+    | ChangeSetting ItemId
     | GetAvailableRounds
     | JoinGame RoundId
 
@@ -92,8 +92,10 @@ encodeToBackend tb =
         ToggleReady ->
             Encode.string "ToggleReady"
 
-        ChangeSetting ->
-            Encode.string "ChangeSetting"
+        ChangeSetting item_id ->
+            Encode.object
+                [ ( "ChangeSetting", Encode.object [ ( "item_id", Encode.int item_id ) ] )
+                ]
 
         GetAvailableRounds ->
             Encode.string "GetAvailableRounds"
@@ -117,8 +119,13 @@ type alias InLevelDetails =
     { currentInstruction : String, uiItems : List UiItem }
 
 
+type alias ItemId =
+    Int
+
+
 type alias UiItem =
-    { label : String
+    { id : ItemId
+    , label : String
     , state : Bool
     }
 
@@ -154,7 +161,8 @@ decodeInLevel =
 
 decodeUiItem : Decoder UiItem
 decodeUiItem =
-    Decode.map2 UiItem
+    Decode.map3 UiItem
+        (field "id" Decode.int)
         (field "label" Decode.string)
         (field "state" Decode.bool)
 

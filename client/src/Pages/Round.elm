@@ -140,11 +140,11 @@ viewGame client_state =
 
         InLevel { currentInstruction, uiItems } ->
             let
-                mkUiItem { label, state } =
+                mkUiItem { label, state, id } =
                     li []
                         [ text label
                         , text " is "
-                        , button []
+                        , button [ onClick <| SendAction <| ChangeSetting id ]
                             [ text <|
                                 if state then
                                     "ON"
