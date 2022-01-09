@@ -5378,9 +5378,9 @@ var $author$project$Api$UpdateGameStateDetails = function (clientState) {
 var $author$project$Api$InLevel = function (a) {
 	return {$: 'InLevel', a: a};
 };
-var $author$project$Api$InLevelDetails = F2(
-	function (currentInstruction, uiItems) {
-		return {currentInstruction: currentInstruction, uiItems: uiItems};
+var $author$project$Api$InLevelDetails = F3(
+	function (currentInstruction, uiItems, instructionsExecuted) {
+		return {currentInstruction: currentInstruction, instructionsExecuted: instructionsExecuted, uiItems: uiItems};
 	});
 var $author$project$Api$UiItem = F3(
 	function (id, label, state) {
@@ -5396,14 +5396,15 @@ var $author$project$Api$decodeUiItem = A4(
 	A2($elm$json$Json$Decode$field, 'label', $elm$json$Json$Decode$string),
 	A2($elm$json$Json$Decode$field, 'state', $elm$json$Json$Decode$bool));
 var $author$project$Api$decodeInLevel = function () {
-	var details = A3(
-		$elm$json$Json$Decode$map2,
+	var details = A4(
+		$elm$json$Json$Decode$map3,
 		$author$project$Api$InLevelDetails,
 		A2($elm$json$Json$Decode$field, 'current_instruction', $elm$json$Json$Decode$string),
 		A2(
 			$elm$json$Json$Decode$field,
 			'ui_items',
-			$elm$json$Json$Decode$list($author$project$Api$decodeUiItem)));
+			$elm$json$Json$Decode$list($author$project$Api$decodeUiItem)),
+		A2($elm$json$Json$Decode$field, 'instructions_executed', $elm$json$Json$Decode$int));
 	return A2(
 		$elm$json$Json$Decode$map,
 		$author$project$Api$InLevel,
@@ -6762,8 +6763,6 @@ var $author$project$Main$update = F2(
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $elm$virtual_dom$VirtualDom$map = _VirtualDom_map;
 var $elm$html$Html$map = $elm$virtual_dom$VirtualDom$map;
-var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
-var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
 var $author$project$Pages$Login$AttemptLogin = F2(
 	function (a, b) {
 		return {$: 'AttemptLogin', a: a, b: b};
@@ -6809,6 +6808,8 @@ var $elm$html$Html$Events$onInput = function (tagger) {
 			$elm$html$Html$Events$alwaysStop,
 			A2($elm$json$Json$Decode$map, tagger, $elm$html$Html$Events$targetValue)));
 };
+var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
+var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
 		return A2(
@@ -6955,18 +6956,6 @@ var $author$project$Pages$Menu$view = function (_v0) {
 				A2($elm$core$List$map, mkJoinRound, roundIds))
 			]));
 };
-var $author$project$Pages$Round$eventToString = function (e) {
-	switch (e.$) {
-		case 'HelloClient':
-			return 'HelloClient';
-		case 'UpdateGameState':
-			return 'UpdateGameState';
-		case 'AvailableRounds':
-			return 'AvailableRounds';
-		default:
-			return 'EnterRound';
-	}
-};
 var $author$project$Api$ChangeSetting = function (a) {
 	return {$: 'ChangeSetting', a: a};
 };
@@ -6974,6 +6963,7 @@ var $author$project$Pages$Round$SendAction = function (a) {
 	return {$: 'SendAction', a: a};
 };
 var $author$project$Api$ToggleReady = {$: 'ToggleReady'};
+var $elm$html$Html$p = _VirtualDom_node('p');
 var $author$project$Pages$Round$viewGame = function (client_state) {
 	if (client_state.$ === 'Lobby') {
 		var playerCount = client_state.a.playerCount;
@@ -7005,6 +6995,7 @@ var $author$project$Pages$Round$viewGame = function (client_state) {
 	} else {
 		var currentInstruction = client_state.a.currentInstruction;
 		var uiItems = client_state.a.uiItems;
+		var instructionsExecuted = client_state.a.instructionsExecuted;
 		var mkUiItem = function (_v1) {
 			var label = _v1.label;
 			var state = _v1.state;
@@ -7036,7 +7027,23 @@ var $author$project$Pages$Round$viewGame = function (client_state) {
 			_List_Nil,
 			_List_fromArray(
 				[
-					$elm$html$Html$text(currentInstruction),
+					A2(
+					$elm$html$Html$p,
+					_List_Nil,
+					_List_fromArray(
+						[
+							$elm$html$Html$text('Instructions executed: '),
+							$elm$html$Html$text(
+							$elm$core$String$fromInt(instructionsExecuted))
+						])),
+					A2(
+					$elm$html$Html$p,
+					_List_Nil,
+					_List_fromArray(
+						[
+							$elm$html$Html$text('instruction:'),
+							$elm$html$Html$text(currentInstruction)
+						])),
 					A2(
 					$elm$html$Html$ul,
 					_List_Nil,
@@ -7051,22 +7058,6 @@ var $author$project$Pages$Round$view = function (model) {
 		_List_fromArray(
 			[
 				$elm$html$Html$text(model.currentChannel),
-				A2(
-				$elm$html$Html$ul,
-				_List_Nil,
-				A2(
-					$elm$core$List$map,
-					function (e) {
-						return A2(
-							$elm$html$Html$li,
-							_List_Nil,
-							_List_fromArray(
-								[
-									$elm$html$Html$text(
-									$author$project$Pages$Round$eventToString(e))
-								]));
-					},
-					model.events)),
 				function () {
 				var _v0 = model.clientState;
 				if (_v0.$ === 'Nothing') {
@@ -7084,13 +7075,6 @@ var $author$project$Main$view = function (model) {
 		_List_Nil,
 		_List_fromArray(
 			[
-				A2(
-				$elm$html$Html$div,
-				_List_Nil,
-				_List_fromArray(
-					[
-						$elm$html$Html$text('LOOK MUM, NO SERVER!!8')
-					])),
 				function () {
 				switch (model.$) {
 					case 'OnLogin':

@@ -116,7 +116,10 @@ type alias LobbyDetails =
 
 
 type alias InLevelDetails =
-    { currentInstruction : String, uiItems : List UiItem }
+    { currentInstruction : String
+    , uiItems : List UiItem
+    , instructionsExecuted : Int
+    }
 
 
 type alias ItemId =
@@ -151,9 +154,10 @@ decodeInLevel : Decoder ClientState
 decodeInLevel =
     let
         details =
-            Decode.map2 InLevelDetails
+            Decode.map3 InLevelDetails
                 (field "current_instruction" Decode.string)
                 (field "ui_items" (Decode.list decodeUiItem))
+                (field "instructions_executed" Decode.int)
     in
     Decode.map InLevel
         (field "InGame" details)

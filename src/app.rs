@@ -55,6 +55,7 @@ pub struct RoundState {
     available_items: Vec<(ItemId, String)>,
     items: Vec<Item>,
     instructions: Vec<Instruction>,
+    instructions_executed: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -89,6 +90,7 @@ pub enum ClientState {
     InGame {
         current_instruction: String,
         ui_items: Vec<ClientUiItem>,
+        instructions_executed: usize,
     },
 }
 
@@ -144,6 +146,7 @@ fn level_for_user(user_id: UserId, round_state: &RoundState) -> Option<ClientSta
     Some(ClientState::InGame {
         current_instruction,
         ui_items,
+        instructions_executed: round_state.instructions_executed,
     })
 }
 
@@ -328,6 +331,7 @@ fn change_setting(
     round: &RocketJamRound,
 ) -> RocketJamRound {
     let mut new_state = false;
+    let mut instructions_executed = round_state.instructions_executed;
     let items = round_state
         .items
         .iter()
@@ -346,6 +350,7 @@ fn change_setting(
     let mut instructions: Vec<Instruction> = Vec::new();
     for instruction in &round_state.instructions {
         if instruction.item_id == item_id && new_state == instruction.state {
+            instructions_executed += 1;
             if let Some(instruction) = mk_instructions(instruction.user_id, &items) {
                 instructions.push(instruction);
             } else {
@@ -358,6 +363,7 @@ fn change_setting(
 
     let new_round_state = RoundState {
         instructions,
+        instructions_executed,
         items,
         ..round_state.clone()
     };
@@ -412,6 +418,7 @@ fn toggle_ready(
                 items,
                 available_items,
                 instructions,
+                instructions_executed: 0,
             });
             RocketJamRound {
                 game,

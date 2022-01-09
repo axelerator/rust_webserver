@@ -185,8 +185,7 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div []
-        [ div [] [ text "LOOK MUM, NO SERVER!!8" ]
-        , case model of
+        [ case model of
             OnLogin subModel ->
                 Html.map ForLogin <| Login.view subModel
 

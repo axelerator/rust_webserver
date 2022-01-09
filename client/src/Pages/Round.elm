@@ -1,7 +1,7 @@
 module Pages.Round exposing (Model, Msg, fromEnterRound, fromTokenAndUsername, mapEvent, update, view)
 
 import Api exposing (ClientState(..), LobbyDetails, ToBackend(..), ToClient(..), ToClientEnvelope(..), eventDecoder)
-import Html exposing (Html, button, div, li, text, ul)
+import Html exposing (Html, button, div, li, p, text, ul)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode exposing (Decoder)
@@ -116,7 +116,8 @@ view : Model -> Html Msg
 view model =
     div []
         [ text model.currentChannel
-        , ul [] <| List.map (\e -> li [] [ text <| eventToString e ]) model.events
+
+        --, ul [] <| List.map (\e -> li [] [ text <| eventToString e ]) model.events
         , case model.clientState of
             Nothing ->
                 text "waiting"
@@ -138,7 +139,7 @@ viewGame client_state =
                 , button [ onClick <| SendAction ToggleReady ] [ text "Ready" ]
                 ]
 
-        InLevel { currentInstruction, uiItems } ->
+        InLevel { currentInstruction, uiItems, instructionsExecuted } ->
             let
                 mkUiItem { label, state, id } =
                     li []
@@ -155,6 +156,7 @@ viewGame client_state =
                         ]
             in
             div []
-                [ text currentInstruction
+                [ p [] [ text "Instructions executed: ", text <| String.fromInt instructionsExecuted ]
+                , p [] [ text "instruction:", text currentInstruction ]
                 , ul [] <| List.map mkUiItem uiItems
                 ]
