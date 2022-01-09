@@ -6,9 +6,9 @@ import Html exposing (Html, button, div, input, span, text)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
-import Pages.Chat as Chat
 import Pages.Login as Login
 import Pages.Menu as Menu
+import Pages.Round as Chat
 import String exposing (fromInt)
 
 

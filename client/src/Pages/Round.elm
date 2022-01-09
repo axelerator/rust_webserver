@@ -1,4 +1,4 @@
-module Pages.Chat exposing (Model, Msg, fromEnterRound, fromTokenAndUsername, mapEvent, update, view)
+module Pages.Round exposing (Model, Msg, fromEnterRound, fromTokenAndUsername, mapEvent, update, view)
 
 import Api exposing (ClientState(..), LobbyDetails, ToBackend(..), ToClient(..), ToClientEnvelope(..), eventDecoder)
 import Html exposing (Html, button, div, li, text, ul)
@@ -135,6 +135,7 @@ viewGame state =
                 , text " of "
                 , text <| String.fromInt playerCount
                 , text " are ready"
+                , button [ onClick <| SendAction ToggleReady ] [ text "Ready" ]
                 ]
 
         InLevel { currentInstruction } ->

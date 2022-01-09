@@ -5490,13 +5490,13 @@ var $author$project$Pages$Menu$GotEvent = function (a) {
 };
 var $author$project$Pages$Menu$gotEvent = $author$project$Pages$Menu$GotEvent;
 var $elm$core$Debug$log = _Debug_log;
-var $author$project$Pages$Chat$EventDecoderError = function (a) {
+var $author$project$Pages$Round$EventDecoderError = function (a) {
 	return {$: 'EventDecoderError', a: a};
 };
-var $author$project$Pages$Chat$GotEvent = function (a) {
+var $author$project$Pages$Round$GotEvent = function (a) {
 	return {$: 'GotEvent', a: a};
 };
-var $author$project$Pages$Chat$mapEvent = function (value) {
+var $author$project$Pages$Round$mapEvent = function (value) {
 	var _v0 = A2($elm$json$Json$Decode$decodeValue, $author$project$Api$eventDecoder, value);
 	if (_v0.$ === 'Ok') {
 		if (_v0.a.$ === 'SuperSeeded') {
@@ -5505,12 +5505,12 @@ var $author$project$Pages$Chat$mapEvent = function (value) {
 		} else {
 			var event = _v0.a.a;
 			return $elm$core$Maybe$Just(
-				$author$project$Pages$Chat$GotEvent(event));
+				$author$project$Pages$Round$GotEvent(event));
 		}
 	} else {
 		var error = _v0.a;
 		return $elm$core$Maybe$Just(
-			$author$project$Pages$Chat$EventDecoderError(
+			$author$project$Pages$Round$EventDecoderError(
 				$elm$json$Json$Decode$errorToString(error)));
 	}
 };
@@ -5520,7 +5520,7 @@ var $elm$json$Json$Decode$value = _Json_decodeValue;
 var $author$project$Main$toClientEvent = _Platform_incomingPort('toClientEvent', $elm$json$Json$Decode$value);
 var $author$project$Main$subscriptions = function (model) {
 	var msg = function (jsonValue) {
-		var _v4 = $author$project$Pages$Chat$mapEvent(jsonValue);
+		var _v4 = $author$project$Pages$Round$mapEvent(jsonValue);
 		if (_v4.$ === 'Just') {
 			var chatEvent = _v4.a;
 			return $author$project$Main$ForChat(chatEvent);
@@ -5565,7 +5565,7 @@ var $author$project$Main$OnMenu = function (a) {
 };
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $author$project$Main$connectToSSE = _Platform_outgoingPort('connectToSSE', $elm$json$Json$Encode$string);
-var $author$project$Pages$Chat$fromEnterRound = F2(
+var $author$project$Pages$Round$fromEnterRound = F2(
 	function (session, clientState) {
 		return {
 			clientState: $elm$core$Maybe$Just(clientState),
@@ -5581,7 +5581,41 @@ var $author$project$Pages$Menu$init = function (sessionData) {
 	};
 };
 var $elm$core$Platform$Cmd$map = _Platform_map;
-var $author$project$Pages$Chat$NoOp = {$: 'NoOp'};
+var $author$project$Pages$Login$GotLoginResponse = function (a) {
+	return {$: 'GotLoginResponse', a: a};
+};
+var $author$project$Api$LoginFailure = function (a) {
+	return {$: 'LoginFailure', a: a};
+};
+var $author$project$Api$FailureDetails = function (msg) {
+	return {msg: msg};
+};
+var $author$project$Api$decodeFailureDetails = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$FailureDetails,
+	A2($elm$json$Json$Decode$field, 'msg', $elm$json$Json$Decode$string));
+var $author$project$Api$decodeLoginFailure = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$LoginFailure,
+	A2($elm$json$Json$Decode$field, 'Failure', $author$project$Api$decodeFailureDetails));
+var $author$project$Api$LoginSuccess = function (a) {
+	return {$: 'LoginSuccess', a: a};
+};
+var $author$project$Api$SuccessDetails = function (token) {
+	return {token: token};
+};
+var $author$project$Api$decodeSuccessDetails = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$SuccessDetails,
+	A2($elm$json$Json$Decode$field, 'token', $elm$json$Json$Decode$string));
+var $author$project$Api$decodeLoginSuccess = A2(
+	$elm$json$Json$Decode$map,
+	$author$project$Api$LoginSuccess,
+	A2($elm$json$Json$Decode$field, 'Success', $author$project$Api$decodeSuccessDetails));
+var $author$project$Api$decodeLoginResponse = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[$author$project$Api$decodeLoginSuccess, $author$project$Api$decodeLoginFailure]));
+var $elm$json$Json$Decode$decodeString = _Json_runOnString;
 var $elm$http$Http$BadStatus_ = F2(
 	function (a, b) {
 		return {$: 'BadStatus_', a: a, b: b};
@@ -6129,13 +6163,24 @@ var $elm$core$Basics$composeR = F3(
 		return g(
 			f(x));
 	});
-var $elm$http$Http$expectBytesResponse = F2(
+var $elm$http$Http$expectStringResponse = F2(
 	function (toMsg, toResult) {
 		return A3(
 			_Http_expect,
-			'arraybuffer',
-			_Http_toDataView,
+			'',
+			$elm$core$Basics$identity,
 			A2($elm$core$Basics$composeR, toResult, toMsg));
+	});
+var $elm$core$Result$mapError = F2(
+	function (f, result) {
+		if (result.$ === 'Ok') {
+			var v = result.a;
+			return $elm$core$Result$Ok(v);
+		} else {
+			var e = result.a;
+			return $elm$core$Result$Err(
+				f(e));
+		}
 	});
 var $elm$http$Http$BadBody = function (a) {
 	return {$: 'BadBody', a: a};
@@ -6148,17 +6193,6 @@ var $elm$http$Http$BadUrl = function (a) {
 };
 var $elm$http$Http$NetworkError = {$: 'NetworkError'};
 var $elm$http$Http$Timeout = {$: 'Timeout'};
-var $elm$core$Result$mapError = F2(
-	function (f, result) {
-		if (result.$ === 'Ok') {
-			var v = result.a;
-			return $elm$core$Result$Ok(v);
-		} else {
-			var e = result.a;
-			return $elm$core$Result$Err(
-				f(e));
-		}
-	});
 var $elm$http$Http$resolve = F2(
 	function (toResult, response) {
 		switch (response.$) {
@@ -6182,20 +6216,49 @@ var $elm$http$Http$resolve = F2(
 					toResult(body));
 		}
 	});
-var $elm$http$Http$expectWhatever = function (toMsg) {
-	return A2(
-		$elm$http$Http$expectBytesResponse,
-		toMsg,
-		$elm$http$Http$resolve(
-			function (_v0) {
-				return $elm$core$Result$Ok(_Utils_Tuple0);
-			}));
-};
+var $elm$http$Http$expectJson = F2(
+	function (toMsg, decoder) {
+		return A2(
+			$elm$http$Http$expectStringResponse,
+			toMsg,
+			$elm$http$Http$resolve(
+				function (string) {
+					return A2(
+						$elm$core$Result$mapError,
+						$elm$json$Json$Decode$errorToString,
+						A2($elm$json$Json$Decode$decodeString, decoder, string));
+				}));
+	});
 var $elm$http$Http$jsonBody = function (value) {
 	return A2(
 		_Http_pair,
 		'application/json',
 		A2($elm$json$Json$Encode$encode, 0, value));
+};
+var $elm$json$Json$Encode$object = function (pairs) {
+	return _Json_wrap(
+		A3(
+			$elm$core$List$foldl,
+			F2(
+				function (_v0, obj) {
+					var k = _v0.a;
+					var v = _v0.b;
+					return A3(_Json_addField, k, v, obj);
+				}),
+			_Json_emptyObject(_Utils_Tuple0),
+			pairs));
+};
+var $author$project$Api$loginEncoder = function (login) {
+	return $elm$json$Json$Encode$object(
+		_List_fromArray(
+			[
+				_Utils_Tuple2(
+				'username',
+				$elm$json$Json$Encode$string(login.username)),
+				_Utils_Tuple2(
+				'password',
+				$elm$json$Json$Encode$string(login.password))
+			]));
 };
 var $elm$http$Http$Request = function (a) {
 	return {$: 'Request', a: a};
@@ -6369,174 +6432,6 @@ var $elm$http$Http$post = function (r) {
 	return $elm$http$Http$request(
 		{body: r.body, expect: r.expect, headers: _List_Nil, method: 'POST', timeout: $elm$core$Maybe$Nothing, tracker: $elm$core$Maybe$Nothing, url: r.url});
 };
-var $elm$json$Json$Encode$object = function (pairs) {
-	return _Json_wrap(
-		A3(
-			$elm$core$List$foldl,
-			F2(
-				function (_v0, obj) {
-					var k = _v0.a;
-					var v = _v0.b;
-					return A3(_Json_addField, k, v, obj);
-				}),
-			_Json_emptyObject(_Utils_Tuple0),
-			pairs));
-};
-var $author$project$Api$encodeToBackend = function (tb) {
-	switch (tb.$) {
-		case 'StartGame':
-			return $elm$json$Json$Encode$string('StartGame');
-		case 'Ready':
-			return $elm$json$Json$Encode$string('Ready');
-		case 'ChangeSetting':
-			return $elm$json$Json$Encode$string('ChangeSetting');
-		case 'GetAvailableRounds':
-			return $elm$json$Json$Encode$string('GetAvailableRounds');
-		default:
-			var roundId = tb.a;
-			return $elm$json$Json$Encode$object(
-				_List_fromArray(
-					[
-						_Utils_Tuple2(
-						'JoinGame',
-						$elm$json$Json$Encode$object(
-							_List_fromArray(
-								[
-									_Utils_Tuple2(
-									'round_id',
-									$elm$json$Json$Encode$string(roundId))
-								])))
-					]));
-	}
-};
-var $author$project$Api$toBackendEnvelopeEncoder = function (be) {
-	return $elm$json$Json$Encode$object(
-		_List_fromArray(
-			[
-				_Utils_Tuple2(
-				'token',
-				$elm$json$Json$Encode$string(be.token)),
-				_Utils_Tuple2(
-				'to_backend',
-				$author$project$Api$encodeToBackend(be.toBackend))
-			]));
-};
-var $author$project$Pages$Chat$sendAction = F2(
-	function (token, toBackend) {
-		return $elm$http$Http$post(
-			{
-				body: $elm$http$Http$jsonBody(
-					$author$project$Api$toBackendEnvelopeEncoder(
-						{toBackend: toBackend, token: token})),
-				expect: $elm$http$Http$expectWhatever(
-					function (_v0) {
-						return $author$project$Pages$Chat$NoOp;
-					}),
-				url: '/action'
-			});
-	});
-var $author$project$Pages$Chat$update = F2(
-	function (msg, model) {
-		switch (msg.$) {
-			case 'NoOp':
-				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-			case 'EventDecoderError':
-				var e = msg.a;
-				return _Utils_Tuple2(
-					A2($elm$core$Debug$log, e, model),
-					$elm$core$Platform$Cmd$none);
-			case 'GotEvent':
-				var e = msg.a;
-				var newClientState = function () {
-					if (e.$ === 'UpdateGameState') {
-						var clientState = e.a.clientState;
-						return $elm$core$Maybe$Just(clientState);
-					} else {
-						return model.clientState;
-					}
-				}();
-				var model_ = _Utils_update(
-					model,
-					{
-						clientState: newClientState,
-						events: A2($elm$core$List$cons, e, model.events)
-					});
-				return _Utils_Tuple2(model_, $elm$core$Platform$Cmd$none);
-			default:
-				var toBackend = msg.a;
-				return _Utils_Tuple2(
-					model,
-					A2($author$project$Pages$Chat$sendAction, model.session.token, toBackend));
-		}
-	});
-var $author$project$Pages$Login$GotLoginResponse = function (a) {
-	return {$: 'GotLoginResponse', a: a};
-};
-var $author$project$Api$LoginFailure = function (a) {
-	return {$: 'LoginFailure', a: a};
-};
-var $author$project$Api$FailureDetails = function (msg) {
-	return {msg: msg};
-};
-var $author$project$Api$decodeFailureDetails = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$FailureDetails,
-	A2($elm$json$Json$Decode$field, 'msg', $elm$json$Json$Decode$string));
-var $author$project$Api$decodeLoginFailure = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$LoginFailure,
-	A2($elm$json$Json$Decode$field, 'Failure', $author$project$Api$decodeFailureDetails));
-var $author$project$Api$LoginSuccess = function (a) {
-	return {$: 'LoginSuccess', a: a};
-};
-var $author$project$Api$SuccessDetails = function (token) {
-	return {token: token};
-};
-var $author$project$Api$decodeSuccessDetails = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$SuccessDetails,
-	A2($elm$json$Json$Decode$field, 'token', $elm$json$Json$Decode$string));
-var $author$project$Api$decodeLoginSuccess = A2(
-	$elm$json$Json$Decode$map,
-	$author$project$Api$LoginSuccess,
-	A2($elm$json$Json$Decode$field, 'Success', $author$project$Api$decodeSuccessDetails));
-var $author$project$Api$decodeLoginResponse = $elm$json$Json$Decode$oneOf(
-	_List_fromArray(
-		[$author$project$Api$decodeLoginSuccess, $author$project$Api$decodeLoginFailure]));
-var $elm$json$Json$Decode$decodeString = _Json_runOnString;
-var $elm$http$Http$expectStringResponse = F2(
-	function (toMsg, toResult) {
-		return A3(
-			_Http_expect,
-			'',
-			$elm$core$Basics$identity,
-			A2($elm$core$Basics$composeR, toResult, toMsg));
-	});
-var $elm$http$Http$expectJson = F2(
-	function (toMsg, decoder) {
-		return A2(
-			$elm$http$Http$expectStringResponse,
-			toMsg,
-			$elm$http$Http$resolve(
-				function (string) {
-					return A2(
-						$elm$core$Result$mapError,
-						$elm$json$Json$Decode$errorToString,
-						A2($elm$json$Json$Decode$decodeString, decoder, string));
-				}));
-	});
-var $author$project$Api$loginEncoder = function (login) {
-	return $elm$json$Json$Encode$object(
-		_List_fromArray(
-			[
-				_Utils_Tuple2(
-				'username',
-				$elm$json$Json$Encode$string(login.username)),
-				_Utils_Tuple2(
-				'password',
-				$elm$json$Json$Encode$string(login.password))
-			]));
-};
 var $author$project$Pages$Login$attemptLogin = F2(
 	function (username, password) {
 		return $elm$http$Http$post(
@@ -6612,6 +6507,62 @@ var $author$project$Pages$Menu$fromBackend = F2(
 			return model;
 		}
 	});
+var $elm$http$Http$expectBytesResponse = F2(
+	function (toMsg, toResult) {
+		return A3(
+			_Http_expect,
+			'arraybuffer',
+			_Http_toDataView,
+			A2($elm$core$Basics$composeR, toResult, toMsg));
+	});
+var $elm$http$Http$expectWhatever = function (toMsg) {
+	return A2(
+		$elm$http$Http$expectBytesResponse,
+		toMsg,
+		$elm$http$Http$resolve(
+			function (_v0) {
+				return $elm$core$Result$Ok(_Utils_Tuple0);
+			}));
+};
+var $author$project$Api$encodeToBackend = function (tb) {
+	switch (tb.$) {
+		case 'StartGame':
+			return $elm$json$Json$Encode$string('StartGame');
+		case 'ToggleReady':
+			return $elm$json$Json$Encode$string('ToggleReady');
+		case 'ChangeSetting':
+			return $elm$json$Json$Encode$string('ChangeSetting');
+		case 'GetAvailableRounds':
+			return $elm$json$Json$Encode$string('GetAvailableRounds');
+		default:
+			var roundId = tb.a;
+			return $elm$json$Json$Encode$object(
+				_List_fromArray(
+					[
+						_Utils_Tuple2(
+						'JoinGame',
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'round_id',
+									$elm$json$Json$Encode$string(roundId))
+								])))
+					]));
+	}
+};
+var $author$project$Api$toBackendEnvelopeEncoder = function (be) {
+	return $elm$json$Json$Encode$object(
+		_List_fromArray(
+			[
+				_Utils_Tuple2(
+				'token',
+				$elm$json$Json$Encode$string(be.token)),
+				_Utils_Tuple2(
+				'to_backend',
+				$author$project$Api$encodeToBackend(be.toBackend))
+			]));
+};
 var $author$project$Api$sendAction = F3(
 	function (actionConfirmationHandler, token, toBackend) {
 		return $elm$http$Http$post(
@@ -6640,6 +6591,55 @@ var $author$project$Pages$Menu$update = F2(
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
 	});
+var $author$project$Pages$Round$NoOp = {$: 'NoOp'};
+var $author$project$Pages$Round$sendAction = F2(
+	function (token, toBackend) {
+		return $elm$http$Http$post(
+			{
+				body: $elm$http$Http$jsonBody(
+					$author$project$Api$toBackendEnvelopeEncoder(
+						{toBackend: toBackend, token: token})),
+				expect: $elm$http$Http$expectWhatever(
+					function (_v0) {
+						return $author$project$Pages$Round$NoOp;
+					}),
+				url: '/action'
+			});
+	});
+var $author$project$Pages$Round$update = F2(
+	function (msg, model) {
+		switch (msg.$) {
+			case 'NoOp':
+				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'EventDecoderError':
+				var e = msg.a;
+				return _Utils_Tuple2(
+					A2($elm$core$Debug$log, e, model),
+					$elm$core$Platform$Cmd$none);
+			case 'GotEvent':
+				var e = msg.a;
+				var newClientState = function () {
+					if (e.$ === 'UpdateGameState') {
+						var clientState = e.a.clientState;
+						return $elm$core$Maybe$Just(clientState);
+					} else {
+						return model.clientState;
+					}
+				}();
+				var model_ = _Utils_update(
+					model,
+					{
+						clientState: newClientState,
+						events: A2($elm$core$List$cons, e, model.events)
+					});
+				return _Utils_Tuple2(model_, $elm$core$Platform$Cmd$none);
+			default:
+				var toBackend = msg.a;
+				return _Utils_Tuple2(
+					model,
+					A2($author$project$Pages$Round$sendAction, model.session.token, toBackend));
+		}
+	});
 var $author$project$Main$update = F2(
 	function (msg, model) {
 		var _v0 = _Utils_Tuple2(msg, model);
@@ -6652,7 +6652,7 @@ var $author$project$Main$update = F2(
 						var session = _v0.b.a.session;
 						return _Utils_Tuple2(
 							$author$project$Main$OnChat(
-								A2($author$project$Pages$Chat$fromEnterRound, session, clientState)),
+								A2($author$project$Pages$Round$fromEnterRound, session, clientState)),
 							$elm$core$Platform$Cmd$none);
 					} else {
 						break _v0$6;
@@ -6717,7 +6717,7 @@ var $author$project$Main$update = F2(
 					if (_v0.b.$ === 'OnChat') {
 						var subMsg = _v0.a.a;
 						var subModel = _v0.b.a;
-						var _v8 = A2($author$project$Pages$Chat$update, subMsg, subModel);
+						var _v8 = A2($author$project$Pages$Round$update, subMsg, subModel);
 						var updateSubModel = _v8.a;
 						var cmd = _v8.b;
 						return _Utils_Tuple2(
@@ -6748,82 +6748,6 @@ var $elm$virtual_dom$VirtualDom$map = _VirtualDom_map;
 var $elm$html$Html$map = $elm$virtual_dom$VirtualDom$map;
 var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
 var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
-var $author$project$Pages$Chat$eventToString = function (e) {
-	switch (e.$) {
-		case 'HelloClient':
-			return 'HelloClient';
-		case 'UpdateGameState':
-			return 'UpdateGameState';
-		case 'AvailableRounds':
-			return 'AvailableRounds';
-		default:
-			return 'EnterRound';
-	}
-};
-var $elm$html$Html$li = _VirtualDom_node('li');
-var $elm$html$Html$ul = _VirtualDom_node('ul');
-var $author$project$Pages$Chat$viewGame = function (state) {
-	if (state.$ === 'Lobby') {
-		var playerCount = state.a.playerCount;
-		var playerReadyCount = state.a.playerReadyCount;
-		return A2(
-			$elm$html$Html$div,
-			_List_Nil,
-			_List_fromArray(
-				[
-					$elm$html$Html$text('players '),
-					$elm$html$Html$text(
-					$elm$core$String$fromInt(playerReadyCount)),
-					$elm$html$Html$text(' of '),
-					$elm$html$Html$text(
-					$elm$core$String$fromInt(playerCount)),
-					$elm$html$Html$text(' are ready')
-				]));
-	} else {
-		var currentInstruction = state.a.currentInstruction;
-		return A2(
-			$elm$html$Html$div,
-			_List_Nil,
-			_List_fromArray(
-				[
-					$elm$html$Html$text(currentInstruction)
-				]));
-	}
-};
-var $author$project$Pages$Chat$view = function (model) {
-	return A2(
-		$elm$html$Html$div,
-		_List_Nil,
-		_List_fromArray(
-			[
-				$elm$html$Html$text(model.currentChannel),
-				A2(
-				$elm$html$Html$ul,
-				_List_Nil,
-				A2(
-					$elm$core$List$map,
-					function (e) {
-						return A2(
-							$elm$html$Html$li,
-							_List_Nil,
-							_List_fromArray(
-								[
-									$elm$html$Html$text(
-									$author$project$Pages$Chat$eventToString(e))
-								]));
-					},
-					model.events)),
-				function () {
-				var _v0 = model.clientState;
-				if (_v0.$ === 'Nothing') {
-					return $elm$html$Html$text('waiting');
-				} else {
-					var state = _v0.a;
-					return $author$project$Pages$Chat$viewGame(state);
-				}
-			}()
-			]));
-};
 var $author$project$Pages$Login$AttemptLogin = F2(
 	function (a, b) {
 		return {$: 'AttemptLogin', a: a, b: b};
@@ -6957,6 +6881,8 @@ var $author$project$Pages$Menu$SendAction = function (a) {
 	return {$: 'SendAction', a: a};
 };
 var $author$project$Api$StartGame = {$: 'StartGame'};
+var $elm$html$Html$li = _VirtualDom_node('li');
+var $elm$html$Html$ul = _VirtualDom_node('ul');
 var $author$project$Pages$Menu$view = function (_v0) {
 	var roundIds = _v0.roundIds;
 	var mkJoinRound = function (roundId) {
@@ -7013,6 +6939,95 @@ var $author$project$Pages$Menu$view = function (_v0) {
 				A2($elm$core$List$map, mkJoinRound, roundIds))
 			]));
 };
+var $author$project$Pages$Round$eventToString = function (e) {
+	switch (e.$) {
+		case 'HelloClient':
+			return 'HelloClient';
+		case 'UpdateGameState':
+			return 'UpdateGameState';
+		case 'AvailableRounds':
+			return 'AvailableRounds';
+		default:
+			return 'EnterRound';
+	}
+};
+var $author$project$Pages$Round$SendAction = function (a) {
+	return {$: 'SendAction', a: a};
+};
+var $author$project$Api$ToggleReady = {$: 'ToggleReady'};
+var $author$project$Pages$Round$viewGame = function (state) {
+	if (state.$ === 'Lobby') {
+		var playerCount = state.a.playerCount;
+		var playerReadyCount = state.a.playerReadyCount;
+		return A2(
+			$elm$html$Html$div,
+			_List_Nil,
+			_List_fromArray(
+				[
+					$elm$html$Html$text('players '),
+					$elm$html$Html$text(
+					$elm$core$String$fromInt(playerReadyCount)),
+					$elm$html$Html$text(' of '),
+					$elm$html$Html$text(
+					$elm$core$String$fromInt(playerCount)),
+					$elm$html$Html$text(' are ready'),
+					A2(
+					$elm$html$Html$button,
+					_List_fromArray(
+						[
+							$elm$html$Html$Events$onClick(
+							$author$project$Pages$Round$SendAction($author$project$Api$ToggleReady))
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text('Ready')
+						]))
+				]));
+	} else {
+		var currentInstruction = state.a.currentInstruction;
+		return A2(
+			$elm$html$Html$div,
+			_List_Nil,
+			_List_fromArray(
+				[
+					$elm$html$Html$text(currentInstruction)
+				]));
+	}
+};
+var $author$project$Pages$Round$view = function (model) {
+	return A2(
+		$elm$html$Html$div,
+		_List_Nil,
+		_List_fromArray(
+			[
+				$elm$html$Html$text(model.currentChannel),
+				A2(
+				$elm$html$Html$ul,
+				_List_Nil,
+				A2(
+					$elm$core$List$map,
+					function (e) {
+						return A2(
+							$elm$html$Html$li,
+							_List_Nil,
+							_List_fromArray(
+								[
+									$elm$html$Html$text(
+									$author$project$Pages$Round$eventToString(e))
+								]));
+					},
+					model.events)),
+				function () {
+				var _v0 = model.clientState;
+				if (_v0.$ === 'Nothing') {
+					return $elm$html$Html$text('waiting');
+				} else {
+					var state = _v0.a;
+					return $author$project$Pages$Round$viewGame(state);
+				}
+			}()
+			]));
+};
 var $author$project$Main$view = function (model) {
 	return A2(
 		$elm$html$Html$div,
@@ -7039,7 +7054,7 @@ var $author$project$Main$view = function (model) {
 						return A2(
 							$elm$html$Html$map,
 							$author$project$Main$ForChat,
-							$author$project$Pages$Chat$view(subModel));
+							$author$project$Pages$Round$view(subModel));
 					default:
 						var subModel = model.a;
 						return A2(

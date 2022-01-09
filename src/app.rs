@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::RwLock};
 
-use log::{error, warn};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ pub enum ToClient {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ToBackend {
     StartGame,
-    Ready,
+    ToggleReady,
     ChangeSetting,
     GetAvailableRounds,
     JoinGame { round_id: RoundId },
@@ -120,7 +120,20 @@ impl RocketJamApp {
             let mut model = model.write().unwrap();
             model
                 .games_by_id
-                .insert(round_id.to_string(), updated_round);
+                .insert(round_id.to_string(), updated_round.clone());
+            round
+                .players
+                .iter()
+                .map(
+                    |user_id| match client_state_for_user(user_id.clone(), &updated_round) {
+                        Some(client_state) => {
+                            Some((*user_id, ToClient::UpdateGameState { client_state }))
+                        }
+                        None => None,
+                    },
+                )
+                .flatten()
+                .collect()
         } else {
             return match msg {
                 ToBackend::StartGame => start_game(user_id, model),
@@ -129,7 +142,6 @@ impl RocketJamApp {
                 _ => vec![],
             };
         }
-        vec![]
     }
 }
 
@@ -248,15 +260,21 @@ pub fn init_model() -> Model {
 
 fn update_round(user_id: UserId, round: &RocketJamRound, msg: &ToBackend) -> RocketJamRound {
     match (msg, &round.game) {
-        (ToBackend::Ready, RocketJam::InLobby { players_ready }) => {
+        (ToBackend::ToggleReady, RocketJam::InLobby { players_ready }) => {
             let mut new_round = round.clone();
-            if !players_ready.contains(&user_id) {
+            if players_ready.contains(&user_id) {
+                let mut players_ready: Vec<UserId> = players_ready.to_vec();
+                players_ready.retain(|player_id| *player_id != user_id);
+                info!("User {:?} was ready, turning off", &user_id);
+                new_round.game = RocketJam::InLobby { players_ready };
+                new_round
+            } else {
                 let mut players_ready = players_ready.clone();
+                info!("User {:?} wasn't ready, turning on", &user_id);
                 players_ready.push(user_id);
                 new_round.game = RocketJam::InLobby { players_ready };
-                return new_round;
+                new_round
             }
-            new_round
         }
         _ => round.clone(),
     }

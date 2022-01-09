@@ -63,7 +63,7 @@ decodeFailureDetails =
 
 type ToBackend
     = StartGame
-    | Ready
+    | ToggleReady
     | ChangeSetting
     | GetAvailableRounds
     | JoinGame RoundId
@@ -89,8 +89,8 @@ encodeToBackend tb =
         StartGame ->
             Encode.string "StartGame"
 
-        Ready ->
-            Encode.string "Ready"
+        ToggleReady ->
+            Encode.string "ToggleReady"
 
         ChangeSetting ->
             Encode.string "ChangeSetting"
