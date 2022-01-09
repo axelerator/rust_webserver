@@ -11,6 +11,13 @@ const ITEMS: &'static [&'static str] = &[
     "Pizza oven",
     "Foot massager",
     "Heating",
+    "Radio",
+    "Windshield wiper",
+    "Flux compensator",
+    "Warp Core",
+    "Fridge",
+    "Fireplace",
+    "Ventilation",
 ];
 
 type UserId = i32;
@@ -47,6 +54,14 @@ pub enum RocketJam {
 pub struct RoundState {
     available_items: Vec<(ItemId, String)>,
     items: Vec<Item>,
+    instructions: Vec<Instruction>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Instruction {
+    user_id: UserId,
+    item_id: ItemId,
+    state: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -91,12 +106,13 @@ fn client_state_for_user(user_id: UserId, round: &RocketJamRound) -> Option<Clie
             player_ready_count: players_ready.len(),
         }),
 
-        RocketJam::InLevel(game_state) => level_for_user(user_id, &game_state.items),
+        RocketJam::InLevel(round_state) => level_for_user(user_id, &round_state),
     }
 }
 
-fn level_for_user(user_id: UserId, items: &Vec<Item>) -> Option<ClientState> {
-    let ui_items: Vec<ClientUiItem> = items
+fn level_for_user(user_id: UserId, round_state: &RoundState) -> Option<ClientState> {
+    let ui_items: Vec<ClientUiItem> = round_state
+        .items
         .iter()
         .filter(|i| i.user_id.eq(&user_id))
         .map(|i| ClientUiItem {
@@ -105,8 +121,28 @@ fn level_for_user(user_id: UserId, items: &Vec<Item>) -> Option<ClientState> {
             state: i.state,
         })
         .collect();
+    let current_instruction = if let Some(instruction) = round_state
+        .instructions
+        .iter()
+        .find(|i| i.user_id == user_id)
+    {
+        let item = round_state
+            .items
+            .iter()
+            .find(|i| i.id == instruction.item_id)
+            .unwrap();
+        if instruction.state {
+            format!("Turn on {}", item.label)
+        } else {
+            format!("Turn off {}", item.label)
+        }
+    } else {
+        error!("Got no instruction for user {:?}", user_id);
+        "".to_string()
+    };
+
     Some(ClientState::InGame {
-        current_instruction: "Brew coffee".to_string(),
+        current_instruction,
         ui_items,
     })
 }
@@ -291,13 +327,15 @@ fn change_setting(
     round_state: &RoundState,
     round: &RocketJamRound,
 ) -> RocketJamRound {
+    let mut new_state = false;
     let items = round_state
         .items
         .iter()
         .map(|item| {
             if item.id == item_id && item.user_id == user_id {
+                new_state = !item.state;
                 Item {
-                    state: !item.state,
+                    state: new_state,
                     ..item.clone()
                 }
             } else {
@@ -305,10 +343,25 @@ fn change_setting(
             }
         })
         .collect();
+    let mut instructions: Vec<Instruction> = Vec::new();
+    for instruction in &round_state.instructions {
+        if instruction.item_id == item_id && new_state == instruction.state {
+            if let Some(instruction) = mk_instructions(instruction.user_id, &items) {
+                instructions.push(instruction);
+            } else {
+                error!("Got no instruction");
+            }
+        } else {
+            instructions.push(instruction.clone());
+        }
+    }
+
     let new_round_state = RoundState {
+        instructions,
         items,
         ..round_state.clone()
     };
+
     let game = RocketJam::InLevel(new_round_state);
     RocketJamRound {
         game,
@@ -342,16 +395,23 @@ fn toggle_ready(
             let mut rng = thread_rng();
             available_items.shuffle(&mut rng);
 
-            let items = round
+            let items: Vec<Item> = round
                 .players
                 .clone()
                 .into_iter()
-                .map(|user_id| mk_item(user_id, &mut available_items))
+                .map(|user_id| mk_items(user_id, 3, &mut available_items))
+                .flatten()
+                .collect();
+            let instructions: Vec<Instruction> = round
+                .players
+                .iter()
+                .map(|user_id| mk_instructions(user_id.clone(), &items))
                 .flatten()
                 .collect();
             let game = RocketJam::InLevel(RoundState {
                 items,
                 available_items,
+                instructions,
             });
             RocketJamRound {
                 game,
@@ -365,16 +425,41 @@ fn toggle_ready(
     }
 }
 
-fn mk_item(user_id: UserId, available_items: &mut Vec<(ItemId, String)>) -> Option<Item> {
-    if let Some((item_id, label)) = available_items.pop() {
-        let item = Item {
-            id: item_id,
-            label,
-            state: false,
+fn mk_instructions(user_id: UserId, items: &Vec<Item>) -> Option<Instruction> {
+    let mut rng = thread_rng();
+    let mut items: Vec<Item> = items.clone();
+    items.retain(|i| i.user_id != user_id);
+    items.shuffle(&mut rng);
+
+    items
+        .into_iter()
+        .take(1)
+        .map(|i| Instruction {
+            item_id: i.id,
             user_id,
-        };
-        Some(item)
-    } else {
-        None
+            state: !i.state,
+        })
+        .next()
+}
+
+fn mk_items(
+    user_id: UserId,
+    count: usize,
+    available_items: &mut Vec<(ItemId, String)>,
+) -> Vec<Item> {
+    let mut items = Vec::new();
+    for _i in 1..count {
+        if let Some((item_id, label)) = available_items.pop() {
+            let item = Item {
+                id: item_id,
+                label,
+                state: false,
+                user_id,
+            };
+            items.push(item);
+        } else {
+            warn!("Ran out of available items");
+        }
     }
+    items
 }
