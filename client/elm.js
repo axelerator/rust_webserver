@@ -5404,7 +5404,7 @@ var $author$project$Api$decodeInLevel = function () {
 	return A2(
 		$elm$json$Json$Decode$map,
 		$author$project$Api$InLevel,
-		A2($elm$json$Json$Decode$field, 'Lobby', details));
+		A2($elm$json$Json$Decode$field, 'InGame', details));
 }();
 var $author$project$Api$Lobby = function (a) {
 	return {$: 'Lobby', a: a};
@@ -6955,10 +6955,10 @@ var $author$project$Pages$Round$SendAction = function (a) {
 	return {$: 'SendAction', a: a};
 };
 var $author$project$Api$ToggleReady = {$: 'ToggleReady'};
-var $author$project$Pages$Round$viewGame = function (state) {
-	if (state.$ === 'Lobby') {
-		var playerCount = state.a.playerCount;
-		var playerReadyCount = state.a.playerReadyCount;
+var $author$project$Pages$Round$viewGame = function (client_state) {
+	if (client_state.$ === 'Lobby') {
+		var playerCount = client_state.a.playerCount;
+		var playerReadyCount = client_state.a.playerReadyCount;
 		return A2(
 			$elm$html$Html$div,
 			_List_Nil,
@@ -6984,13 +6984,38 @@ var $author$project$Pages$Round$viewGame = function (state) {
 						]))
 				]));
 	} else {
-		var currentInstruction = state.a.currentInstruction;
+		var currentInstruction = client_state.a.currentInstruction;
+		var uiItems = client_state.a.uiItems;
+		var mkUiItem = function (_v1) {
+			var label = _v1.label;
+			var state = _v1.state;
+			return A2(
+				$elm$html$Html$li,
+				_List_Nil,
+				_List_fromArray(
+					[
+						$elm$html$Html$text(label),
+						$elm$html$Html$text(' is '),
+						A2(
+						$elm$html$Html$button,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								state ? 'ON' : 'OFF')
+							]))
+					]));
+		};
 		return A2(
 			$elm$html$Html$div,
 			_List_Nil,
 			_List_fromArray(
 				[
-					$elm$html$Html$text(currentInstruction)
+					$elm$html$Html$text(currentInstruction),
+					A2(
+					$elm$html$Html$ul,
+					_List_Nil,
+					A2($elm$core$List$map, mkUiItem, uiItems))
 				]));
 	}
 };

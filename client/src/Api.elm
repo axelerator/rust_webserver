@@ -149,7 +149,7 @@ decodeInLevel =
                 (field "ui_items" (Decode.list decodeUiItem))
     in
     Decode.map InLevel
-        (field "Lobby" details)
+        (field "InGame" details)
 
 
 decodeUiItem : Decoder UiItem

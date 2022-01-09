@@ -126,8 +126,8 @@ view model =
         ]
 
 
-viewGame state =
-    case state of
+viewGame client_state =
+    case client_state of
         Lobby { playerCount, playerReadyCount } ->
             div []
                 [ text "players "
@@ -138,5 +138,23 @@ viewGame state =
                 , button [ onClick <| SendAction ToggleReady ] [ text "Ready" ]
                 ]
 
-        InLevel { currentInstruction } ->
-            div [] [ text currentInstruction ]
+        InLevel { currentInstruction, uiItems } ->
+            let
+                mkUiItem { label, state } =
+                    li []
+                        [ text label
+                        , text " is "
+                        , button []
+                            [ text <|
+                                if state then
+                                    "ON"
+
+                                else
+                                    "OFF"
+                            ]
+                        ]
+            in
+            div []
+                [ text currentInstruction
+                , ul [] <| List.map mkUiItem uiItems
+                ]

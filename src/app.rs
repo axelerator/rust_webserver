@@ -1,8 +1,17 @@
 use std::{collections::HashMap, sync::RwLock};
 
 use log::{error, info, warn};
+use rand::{prelude::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+const ITEMS: &'static [&'static str] = &[
+    "Chemex Coffeemaker",
+    "Sound system",
+    "Pizza oven",
+    "Foot massager",
+    "Heating",
+];
 
 type UserId = i32;
 
@@ -30,8 +39,13 @@ pub enum ToBackend {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum RocketJam {
-    InLobby { players_ready: Vec<UserId> },
-    InLevel(LevelState),
+    InLobby {
+        players_ready: Vec<UserId>,
+    },
+    InLevel {
+        available_items: Vec<(ItemId, String)>,
+        items: Vec<Item>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,13 +55,10 @@ pub struct RocketJamRound {
     game: RocketJam,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct LevelState {
-    items: Vec<Item>,
-}
-
+type ItemId = usize;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Item {
+    id: ItemId,
     label: String,
     state: bool,
     user_id: i32,
@@ -77,13 +88,13 @@ fn client_state_for_user(user_id: UserId, round: &RocketJamRound) -> Option<Clie
             player_count: round.players.len(),
             player_ready_count: players_ready.len(),
         }),
-        RocketJam::InLevel(details) => level_for_user(user_id, details),
+
+        RocketJam::InLevel { items, .. } => level_for_user(user_id, items),
     }
 }
 
-fn level_for_user(user_id: UserId, level: &LevelState) -> Option<ClientState> {
-    let ui_items: Vec<ClientUiItem> = level
-        .items
+fn level_for_user(user_id: UserId, items: &Vec<Item>) -> Option<ClientState> {
+    let ui_items: Vec<ClientUiItem> = items
         .iter()
         .filter(|i| i.user_id.eq(&user_id))
         .map(|i| ClientUiItem {
@@ -282,8 +293,50 @@ fn toggle_ready(
     } else {
         let mut players_ready = players_ready.clone();
         info!("User {:?} wasn't ready, turning on", &user_id);
-        players_ready.push(user_id);
-        new_round.game = RocketJam::InLobby { players_ready };
-        new_round
+        if players_ready.len() == (round.players.len() - 1) {
+            // everybody is ready
+            let mut available_items: Vec<(ItemId, String)> = ITEMS
+                .to_vec()
+                .iter()
+                .enumerate()
+                .map(|(item_id, label)| (item_id, label.to_string()))
+                .collect();
+            let mut rng = thread_rng();
+            available_items.shuffle(&mut rng);
+
+            let items = round
+                .players
+                .clone()
+                .into_iter()
+                .map(|user_id| mk_item(user_id, &mut available_items))
+                .flatten()
+                .collect();
+            let game = RocketJam::InLevel {
+                items,
+                available_items,
+            };
+            RocketJamRound {
+                game,
+                ..round.clone()
+            }
+        } else {
+            players_ready.push(user_id);
+            new_round.game = RocketJam::InLobby { players_ready };
+            new_round
+        }
+    }
+}
+
+fn mk_item(user_id: UserId, available_items: &mut Vec<(ItemId, String)>) -> Option<Item> {
+    if let Some((item_id, label)) = available_items.pop() {
+        let item = Item {
+            id: item_id,
+            label,
+            state: false,
+            user_id,
+        };
+        Some(item)
+    } else {
+        None
     }
 }
