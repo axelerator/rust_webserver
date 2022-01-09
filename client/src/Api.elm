@@ -1,6 +1,6 @@
 module Api exposing (..)
 
-import Http
+import Http exposing (Error(..))
 import Json.Decode as Decode exposing (Decoder, field)
 import Json.Encode as Encode exposing (Value)
 
@@ -62,7 +62,8 @@ decodeFailureDetails =
 
 
 type ToBackend
-    = StartGame
+    = Init
+    | StartGame
     | ToggleReady
     | ChangeSetting ItemId
     | GetAvailableRounds
@@ -86,6 +87,9 @@ toBackendEnvelopeEncoder be =
 encodeToBackend : ToBackend -> Value
 encodeToBackend tb =
     case tb of
+        Init ->
+            Encode.string "Init"
+
         StartGame ->
             Encode.string "StartGame"
 
@@ -272,3 +276,28 @@ sendAction actionConfirmationHandler token toBackend =
         , body = Http.jsonBody <| toBackendEnvelopeEncoder { token = token, toBackend = toBackend }
         , expect = Http.expectWhatever actionConfirmationHandler
         }
+
+
+httpErrorToString : Http.Error -> String
+httpErrorToString error =
+    case error of
+        BadUrl url ->
+            "The URL " ++ url ++ " was invalid"
+
+        Timeout ->
+            "Unable to reach the server, try again"
+
+        NetworkError ->
+            "Unable to reach the server, check your network connection"
+
+        BadStatus 500 ->
+            "The server had a problem, try again later"
+
+        BadStatus 400 ->
+            "Verify your information and try again"
+
+        BadStatus _ ->
+            "Unknown error"
+
+        BadBody errorMessage ->
+            errorMessage

@@ -37,6 +37,7 @@ pub enum ToClient {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ToBackend {
+    Init,
     StartGame,
     ToggleReady,
     ChangeSetting { item_id: ItemId },
@@ -189,6 +190,7 @@ impl RocketJamApp {
                 .collect()
         } else {
             return match msg {
+                ToBackend::Init => get_available_rounds(user_id, model),
                 ToBackend::StartGame => start_game(user_id, model),
                 ToBackend::GetAvailableRounds => get_available_rounds(user_id, model),
                 ToBackend::JoinGame { round_id } => join_game(user_id, &round_id, model),

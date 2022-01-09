@@ -1,4 +1,4 @@
-module Pages.Menu exposing (Model, Msg, gotEvent, init, update, view)
+module Pages.Menu exposing (Model, Msg, gotEvent, init, toSession, update, view)
 
 import Api exposing (ClientState(..), RoundId, ToBackend(..), ToClient(..), ToClientEnvelope(..), toClientDecoder)
 import Html exposing (button, div, li, text, ul)
@@ -11,6 +11,11 @@ type alias Model =
     { session : Session
     , roundIds : List RoundId
     }
+
+
+toSession : Model -> Session
+toSession =
+    .session
 
 
 init sessionData =

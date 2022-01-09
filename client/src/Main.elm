@@ -1,18 +1,22 @@
 port module Main exposing (..)
 
-import Api exposing (ClientState, ToClient(..))
+import Api exposing (ClientState, ToBackend(..), ToClient(..), sendAction, toClientDecoder)
 import Browser
 import Html exposing (Html, button, div, input, span, text)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
-import Pages.Login as Login
+import Pages.Login as Login exposing (Msg(..))
 import Pages.Menu as Menu
-import Pages.Round as Chat
+import Pages.Round as Round
+import Session exposing (Session)
 import String exposing (fromInt)
 
 
 port toClientEvent : (Value -> msg) -> Sub msg
+
+
+port sseConnected : (Bool -> msg) -> Sub msg
 
 
 port connectToSSE : String -> Cmd msg
@@ -37,8 +41,20 @@ main =
 
 type Model
     = OnLogin Login.Model
-    | OnChat Chat.Model
+    | OnRound Round.Model
     | OnMenu Menu.Model
+
+
+sessionFromModel model =
+    case model of
+        OnRound subModel ->
+            Just <| Round.toSession subModel
+
+        OnMenu subModel ->
+            Just <| Menu.toSession subModel
+
+        _ ->
+            Nothing
 
 
 init : () -> ( Model, Cmd Msg )
@@ -54,17 +70,30 @@ init _ =
 
 type Msg
     = ForLogin Login.Msg
-    | ForChat Chat.Msg
+    | ForRound Round.Msg
     | ForMenu Menu.Msg
     | Logout
-    | SwitchToOnChat ClientState
+    | SSEConnected
+    | CouldNotSendAction
+    | CouldNotDecodeEvent
+    | ChangeToRound Session ClientState
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case ( msg, model ) of
-        ( SwitchToOnChat clientState, OnMenu { session } ) ->
-            ( OnChat (Chat.fromEnterRound session clientState), Cmd.none )
+        ( SSEConnected, _ ) ->
+            ( model
+            , case sessionFromModel model of
+                Just session ->
+                    sendAction (\_ -> CouldNotSendAction) session.token Init
+
+                Nothing ->
+                    Cmd.none
+            )
+
+        ( ChangeToRound session clientState, _ ) ->
+            ( OnRound (Round.fromEnterRound session clientState), Cmd.none )
 
         ( ForLogin ((Login.GotLoginResponse httpResponse) as subMsg), OnLogin subModel ) ->
             let
@@ -111,13 +140,13 @@ update msg model =
             , connectToSSE ""
             )
 
-        ( ForChat subMsg, OnChat subModel ) ->
+        ( ForRound subMsg, OnRound subModel ) ->
             let
                 ( updateSubModel, cmd ) =
-                    Chat.update subMsg subModel
+                    Round.update subMsg subModel
             in
-            ( OnChat updateSubModel
-            , Cmd.map ForChat cmd
+            ( OnRound updateSubModel
+            , Cmd.map ForRound cmd
             )
 
         ( ForMenu subMsg, OnMenu subModel ) ->
@@ -137,45 +166,40 @@ update msg model =
 -- SUBSCRIPTIONS
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
+onEvent : Model -> Value -> Msg
+onEvent model value =
     let
-        msg jsonValue =
-            case Chat.mapEvent jsonValue of
-                Just chatEvent ->
-                    ForChat chatEvent
+        decoderResult =
+            Decode.decodeValue Api.eventDecoder value
 
-                Nothing ->
-                    Logout
+        maybeSession =
+            sessionFromModel model
     in
-    case model of
-        OnChat _ ->
-            toClientEvent msg
+    case ( decoderResult, maybeSession ) of
+        ( Ok (Api.AppMsg toClient), Just session ) ->
+            case ( toClient, model ) of
+                ( UpdateGameState { clientState }, _ ) ->
+                    ChangeToRound session clientState
 
-        OnMenu _ ->
-            let
-                decode value =
-                    case Decode.decodeValue Api.eventDecoder value of
-                        Ok (Api.AppMsg event) ->
-                            case event of
-                                EnterRound x ->
-                                    SwitchToOnChat x.clientState
+                ( EnterRound { clientState }, _ ) ->
+                    ChangeToRound session clientState
 
-                                _ ->
-                                    ForMenu <| Menu.gotEvent event
+                ( _, OnMenu _ ) ->
+                    ForMenu <| Menu.gotEvent toClient
 
-                        e ->
-                            -- a bit extreme :-p needs proper error handling
-                            let
-                                _ =
-                                    Debug.log "something went wrong " e
-                            in
-                            Logout
-            in
-            toClientEvent decode
+                ( _, OnRound _ ) ->
+                    ForRound <| Round.gotEvent toClient
+
+                _ ->
+                    CouldNotDecodeEvent
 
         _ ->
-            Sub.none
+            CouldNotDecodeEvent
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch [ toClientEvent (onEvent model), sseConnected (\_ -> SSEConnected) ]
 
 
 
@@ -189,8 +213,8 @@ view model =
             OnLogin subModel ->
                 Html.map ForLogin <| Login.view subModel
 
-            OnChat subModel ->
-                Html.map ForChat <| Chat.view subModel
+            OnRound subModel ->
+                Html.map ForRound <| Round.view subModel
 
             OnMenu subModel ->
                 Html.map ForMenu <| Menu.view subModel

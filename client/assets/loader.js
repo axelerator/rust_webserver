@@ -20,6 +20,7 @@ function connectToSSE(token) {
     };
     evtSource.onopen = function(e) {
       console.log("Connection to server opened.");
+      app.ports.sseConnected.send(true);
     };
     evtSource.onerror =  function(e) {
       console.log("error", e);

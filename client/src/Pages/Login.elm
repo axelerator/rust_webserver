@@ -1,6 +1,6 @@
 module Pages.Login exposing (Model, Msg(..), init, update, view)
 
-import Api exposing (LoginResponse(..))
+import Api exposing (LoginResponse(..), ToBackend(..), sendAction)
 import Html exposing (Html, button, div, input, label, text)
 import Html.Attributes exposing (type_, value)
 import Html.Events exposing (onClick, onInput)
@@ -28,6 +28,7 @@ type Msg
     | ChangePassword String
     | AttemptLogin String String
     | GotLoginResponse (Result Http.Error Api.LoginResponse)
+    | CouldNotSendAction (Result Http.Error ())
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -44,8 +45,13 @@ update msg model =
             )
 
         AttemptLogin username password ->
-            ( { model | loading = False }
+            ( { model | loading = True }
             , attemptLogin username password
+            )
+
+        CouldNotSendAction _ ->
+            ( { model | msg = Just "Could not send action" }
+            , Cmd.none
             )
 
         GotLoginResponse httpResponse ->
@@ -58,12 +64,12 @@ update msg model =
                             )
 
                         LoginFailure failure ->
-                            ( { model | username = failure.msg, loading = False }
+                            ( { model | msg = Just failure.msg, loading = False }
                             , Cmd.none
                             )
 
                 Err err ->
-                    ( model
+                    ( { model | msg = Just <| Api.httpErrorToString err }
                     , Cmd.none
                     )
 

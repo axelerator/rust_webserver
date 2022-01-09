@@ -1,4 +1,14 @@
-module Pages.Round exposing (Model, Msg, fromEnterRound, fromTokenAndUsername, mapEvent, update, view)
+module Pages.Round exposing
+    ( Model
+    , Msg
+    , fromEnterRound
+    , fromTokenAndUsername
+    , gotEvent
+    , mapEvent
+    , toSession
+    , update
+    , view
+    )
 
 import Api exposing (ClientState(..), LobbyDetails, ToBackend(..), ToClient(..), ToClientEnvelope(..), eventDecoder)
 import Html exposing (Html, button, div, li, p, text, ul)
@@ -15,6 +25,11 @@ type alias Model =
     , events : List ToClient
     , clientState : Maybe ClientState
     }
+
+
+toSession : Model -> Session
+toSession =
+    .session
 
 
 fromTokenAndUsername token username =
@@ -35,6 +50,11 @@ fromEnterRound session clientState =
     , events = []
     , clientState = Just clientState
     }
+
+
+gotEvent : ToClient -> Msg
+gotEvent =
+    GotEvent
 
 
 mapEvent : Value -> Maybe Msg
