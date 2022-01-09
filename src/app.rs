@@ -261,21 +261,29 @@ pub fn init_model() -> Model {
 fn update_round(user_id: UserId, round: &RocketJamRound, msg: &ToBackend) -> RocketJamRound {
     match (msg, &round.game) {
         (ToBackend::ToggleReady, RocketJam::InLobby { players_ready }) => {
-            let mut new_round = round.clone();
-            if players_ready.contains(&user_id) {
-                let mut players_ready: Vec<UserId> = players_ready.to_vec();
-                players_ready.retain(|player_id| *player_id != user_id);
-                info!("User {:?} was ready, turning off", &user_id);
-                new_round.game = RocketJam::InLobby { players_ready };
-                new_round
-            } else {
-                let mut players_ready = players_ready.clone();
-                info!("User {:?} wasn't ready, turning on", &user_id);
-                players_ready.push(user_id);
-                new_round.game = RocketJam::InLobby { players_ready };
-                new_round
-            }
+            toggle_ready(user_id, players_ready, round)
         }
         _ => round.clone(),
+    }
+}
+
+fn toggle_ready(
+    user_id: i32,
+    players_ready: &Vec<UserId>,
+    round: &RocketJamRound,
+) -> RocketJamRound {
+    let mut new_round = round.clone();
+    if players_ready.contains(&user_id) {
+        let mut players_ready: Vec<UserId> = players_ready.to_vec();
+        players_ready.retain(|player_id| *player_id != user_id);
+        info!("User {:?} was ready, turning off", &user_id);
+        new_round.game = RocketJam::InLobby { players_ready };
+        new_round
+    } else {
+        let mut players_ready = players_ready.clone();
+        info!("User {:?} wasn't ready, turning on", &user_id);
+        players_ready.push(user_id);
+        new_round.game = RocketJam::InLobby { players_ready };
+        new_round
     }
 }
