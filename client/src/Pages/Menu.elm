@@ -1,6 +1,6 @@
 module Pages.Menu exposing (Model, Msg, gotEvent, init, toSession, update, view)
 
-import Api exposing (ClientState(..), RoundId, ToBackend(..), ToClient(..), ToClientEnvelope(..), toClientDecoder)
+import Api exposing (ClientState(..), RoundId, ToBackend(..), ToClient(..), ToClientEnvelope(..))
 import Html exposing (button, div, li, text, ul)
 import Html.Events exposing (onClick)
 import Http
@@ -18,6 +18,7 @@ toSession =
     .session
 
 
+init : { a | token : b } -> { session : { token : b, username : String }, roundIds : List c }
 init sessionData =
     { session = { token = sessionData.token, username = "placeholder" }
     , roundIds = []
@@ -58,6 +59,7 @@ fromBackend toClient model =
             model
 
 
+view : { a | roundIds : List RoundId } -> Html.Html Msg
 view { roundIds } =
     let
         mkJoinRound roundId =

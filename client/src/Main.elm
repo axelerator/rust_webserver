@@ -1,16 +1,14 @@
 port module Main exposing (..)
 
-import Api exposing (ClientState, ToBackend(..), ToClient(..), sendAction, toClientDecoder)
+import Api exposing (ClientState, ToBackend(..), ToClient(..), sendAction)
 import Browser
-import Html exposing (Html, button, div, input, span, text)
-import Html.Events exposing (onClick)
+import Html exposing (Html, div)
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
 import Pages.Login as Login exposing (Msg(..))
 import Pages.Menu as Menu
 import Pages.Round as Round
 import Session exposing (Session)
-import String exposing (fromInt)
 
 
 port toClientEvent : (Value -> msg) -> Sub msg
@@ -22,10 +20,7 @@ port sseConnected : (Bool -> msg) -> Sub msg
 port connectToSSE : String -> Cmd msg
 
 
-
--- MAIN
-
-
+main : Program () Model Msg
 main =
     Browser.element
         { init = init
@@ -45,6 +40,7 @@ type Model
     | OnMenu Menu.Model
 
 
+sessionFromModel : Model -> Maybe Session
 sessionFromModel model =
     case model of
         OnRound subModel ->

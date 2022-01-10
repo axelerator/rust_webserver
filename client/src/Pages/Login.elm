@@ -1,6 +1,6 @@
 module Pages.Login exposing (Model, Msg(..), init, update, view)
 
-import Api exposing (LoginResponse(..), ToBackend(..), sendAction)
+import Api exposing (LoginResponse(..), ToBackend(..))
 import Html exposing (Html, button, div, input, label, text)
 import Html.Attributes exposing (type_, value)
 import Html.Events exposing (onClick, onInput)
@@ -15,6 +15,7 @@ type alias Model =
     }
 
 
+init : a -> { username : String, password : String, loading : Bool, msg : a }
 init msg =
     { username = "at"
     , password = "aa"

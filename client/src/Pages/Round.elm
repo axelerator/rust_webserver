@@ -2,26 +2,20 @@ module Pages.Round exposing
     ( Model
     , Msg
     , fromEnterRound
-    , fromTokenAndUsername
     , gotEvent
-    , mapEvent
     , toSession
     , update
     , view
     )
 
-import Api exposing (ClientState(..), LobbyDetails, ToBackend(..), ToClient(..), ToClientEnvelope(..), eventDecoder)
+import Api exposing (ClientState(..), ToBackend(..), ToClient(..), ToClientEnvelope(..), sendAction)
 import Html exposing (Html, button, div, li, p, text, ul)
 import Html.Events exposing (onClick)
-import Http
-import Json.Decode as Decode exposing (Decoder)
-import Json.Encode exposing (Value)
 import Session exposing (Session)
 
 
 type alias Model =
-    { currentChannel : String
-    , session : Session
+    { session : Session
     , events : List ToClient
     , clientState : Maybe ClientState
     }
@@ -32,21 +26,9 @@ toSession =
     .session
 
 
-fromTokenAndUsername token username =
-    { currentChannel = "a channel name"
-    , session =
-        { username = username
-        , token = token
-        }
-    , events = []
-    , clientState = Nothing
-    }
-
-
 fromEnterRound : Session -> ClientState -> Model
 fromEnterRound session clientState =
-    { currentChannel = "a channel name"
-    , session = session
+    { session = session
     , events = []
     , clientState = Just clientState
     }
@@ -55,19 +37,6 @@ fromEnterRound session clientState =
 gotEvent : ToClient -> Msg
 gotEvent =
     GotEvent
-
-
-mapEvent : Value -> Maybe Msg
-mapEvent value =
-    case Decode.decodeValue eventDecoder value of
-        Ok SuperSeeded ->
-            Nothing
-
-        Ok (AppMsg event) ->
-            Just <| GotEvent event
-
-        Err error ->
-            Just <| EventDecoderError <| Decode.errorToString error
 
 
 type Msg
@@ -105,40 +74,14 @@ update msg model =
             ( model_, Cmd.none )
 
         SendAction toBackend ->
-            ( model, sendAction model.session.token toBackend )
-
-
-sendAction : String -> ToBackend -> Cmd Msg
-sendAction token toBackend =
-    Http.post
-        { url = "/action"
-        , body = Http.jsonBody <| Api.toBackendEnvelopeEncoder { token = token, toBackend = toBackend }
-        , expect = Http.expectWhatever (\_ -> NoOp)
-        }
-
-
-eventToString e =
-    case e of
-        HelloClient ->
-            "HelloClient"
-
-        UpdateGameState _ ->
-            "UpdateGameState"
-
-        AvailableRounds _ ->
-            "AvailableRounds"
-
-        EnterRound _ ->
-            "EnterRound"
+            ( model, sendAction (\_ -> NoOp) model.session.token toBackend )
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ text model.currentChannel
-
         --, ul [] <| List.map (\e -> li [] [ text <| eventToString e ]) model.events
-        , case model.clientState of
+        [ case model.clientState of
             Nothing ->
                 text "waiting"
 
@@ -147,6 +90,7 @@ view model =
         ]
 
 
+viewGame : ClientState -> Html Msg
 viewGame client_state =
     case client_state of
         Lobby { playerCount, playerReadyCount } ->
