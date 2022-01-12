@@ -25,6 +25,7 @@ type UserId = i32;
 pub struct Model {
     pub games_by_id: HashMap<RoundId, RocketJamRound>,
     pub game_ids_by_user_id: HashMap<UserId, RoundId>,
+    pub tick: i32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -64,6 +65,7 @@ pub struct Instruction {
     user_id: UserId,
     item_id: ItemId,
     state: bool,
+    eol_tick: i32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -164,14 +166,29 @@ pub type RoundId = String;
 
 pub struct RocketJamApp {}
 
-type ClientMessage = (UserId, ToClient);
+pub type ClientMessage = (UserId, ToClient);
 
 impl RocketJamApp {
+    pub fn tick(model: &RwLock<Model>) -> Vec<ClientMessage> {
+        let mut model = model.write().unwrap();
+        let mut updated_rounds = HashMap::new();
+        let mut msgs = Vec::new();
+        for (key, round) in model.games_by_id.iter() {
+            let (updated_round, client_messages) = tick_round(round, model.tick);
+            updated_rounds.insert(key.clone(), updated_round);
+            let mut ccc = client_messages.clone();
+            msgs.append(&mut ccc);
+        }
+        model.games_by_id = updated_rounds;
+        model.tick += 1;
+        msgs
+    }
+
     pub fn update(user_id: UserId, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
         if let Some(round) = find_game_by_user_id(&user_id, model) {
-            let updated_round = update_round(user_id, &round, &msg);
-            let round_id = round.id;
             let mut model = model.write().unwrap();
+            let updated_round = update_round(user_id, &round, &msg, model.tick);
+            let round_id = round.id;
             model
                 .games_by_id
                 .insert(round_id.to_string(), updated_round.clone());
@@ -197,6 +214,60 @@ impl RocketJamApp {
                 _ => vec![],
             };
         }
+    }
+}
+
+fn tick_round(round: &RocketJamRound, current_tick: i32) -> (RocketJamRound, Vec<ClientMessage>) {
+    match &round.game {
+        RocketJam::InLevel(round_state) => {
+            let mut instructions: Vec<Instruction> = Vec::new();
+            let mut updated = false;
+            for instruction in &round_state.instructions {
+                if instruction.eol_tick == current_tick {
+                    // instructions_missed += 1;
+                    if let Some(instruction) =
+                        mk_instructions(instruction.user_id, &round_state.items, current_tick)
+                    {
+                        info!("NEW INSTRUCTION {:?}", &instruction);
+                        instructions.push(instruction);
+                        updated = true;
+                    } else {
+                        error!("Got no instruction");
+                    }
+                } else {
+                    instructions.push(instruction.clone());
+                }
+            }
+            let updated_round_state = RoundState {
+                instructions,
+                ..round_state.clone()
+            };
+
+            let rocket_jam = RocketJam::InLevel(updated_round_state);
+            let updated_round = RocketJamRound {
+                game: rocket_jam,
+                ..round.clone()
+            };
+            if !updated {
+                (updated_round, vec![])
+            } else {
+                let msgs: Vec<ClientMessage> = updated_round
+                    .players
+                    .iter()
+                    .map(
+                        |user_id| match client_state_for_user(*user_id, &updated_round) {
+                            Some(client_state) => {
+                                Some((*user_id, ToClient::UpdateGameState { client_state }))
+                            }
+                            None => None,
+                        },
+                    )
+                    .flatten()
+                    .collect();
+                (updated_round, msgs)
+            }
+        }
+        RocketJam::InLobby { .. } => (round.clone(), vec![]),
     }
 }
 
@@ -310,16 +381,22 @@ pub fn init_model() -> Model {
     Model {
         games_by_id: HashMap::new(),
         game_ids_by_user_id: HashMap::new(),
+        tick: 0,
     }
 }
 
-fn update_round(user_id: UserId, round: &RocketJamRound, msg: &ToBackend) -> RocketJamRound {
+fn update_round(
+    user_id: UserId,
+    round: &RocketJamRound,
+    msg: &ToBackend,
+    current_tick: i32,
+) -> RocketJamRound {
     match (msg, &round.game) {
         (ToBackend::ToggleReady, RocketJam::InLobby { players_ready }) => {
-            toggle_ready(user_id, players_ready, round)
+            toggle_ready(user_id, players_ready, round, current_tick)
         }
         (ToBackend::ChangeSetting { item_id }, RocketJam::InLevel(game_state)) => {
-            change_setting(user_id, *item_id, game_state, round)
+            change_setting(user_id, *item_id, game_state, round, current_tick)
         }
 
         _ => round.clone(),
@@ -331,6 +408,7 @@ fn change_setting(
     item_id: ItemId,
     round_state: &RoundState,
     round: &RocketJamRound,
+    current_tick: i32,
 ) -> RocketJamRound {
     let mut new_state = false;
     let mut instructions_executed = round_state.instructions_executed;
@@ -353,7 +431,7 @@ fn change_setting(
     for instruction in &round_state.instructions {
         if instruction.item_id == item_id && new_state == instruction.state {
             instructions_executed += 1;
-            if let Some(instruction) = mk_instructions(instruction.user_id, &items) {
+            if let Some(instruction) = mk_instructions(instruction.user_id, &items, current_tick) {
                 instructions.push(instruction);
             } else {
                 error!("Got no instruction");
@@ -381,6 +459,7 @@ fn toggle_ready(
     user_id: i32,
     players_ready: &Vec<UserId>,
     round: &RocketJamRound,
+    current_tick: i32,
 ) -> RocketJamRound {
     let mut new_round = round.clone();
     if players_ready.contains(&user_id) {
@@ -407,13 +486,13 @@ fn toggle_ready(
                 .players
                 .clone()
                 .into_iter()
-                .map(|user_id| mk_items(user_id, 3, &mut available_items))
+                .map(|user_id| mk_items(user_id, 4, &mut available_items))
                 .flatten()
                 .collect();
             let instructions: Vec<Instruction> = round
                 .players
                 .iter()
-                .map(|user_id| mk_instructions(user_id.clone(), &items))
+                .map(|user_id| mk_instructions(user_id.clone(), &items, current_tick))
                 .flatten()
                 .collect();
             let game = RocketJam::InLevel(RoundState {
@@ -434,7 +513,7 @@ fn toggle_ready(
     }
 }
 
-fn mk_instructions(user_id: UserId, items: &Vec<Item>) -> Option<Instruction> {
+fn mk_instructions(user_id: UserId, items: &Vec<Item>, current_tick: i32) -> Option<Instruction> {
     let mut rng = thread_rng();
     let mut items: Vec<Item> = items.clone();
     items.retain(|i| i.user_id != user_id);
@@ -447,6 +526,7 @@ fn mk_instructions(user_id: UserId, items: &Vec<Item>) -> Option<Instruction> {
             item_id: i.id,
             user_id,
             state: !i.state,
+            eol_tick: current_tick + 5,
         })
         .next()
 }
@@ -457,7 +537,7 @@ fn mk_items(
     available_items: &mut Vec<(ItemId, String)>,
 ) -> Vec<Item> {
     let mut items = Vec::new();
-    for _i in 1..count {
+    for _i in 0..count {
         if let Some((item_id, label)) = available_items.pop() {
             let item = Item {
                 id: item_id,

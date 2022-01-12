@@ -5,11 +5,12 @@ use serde_json;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::sync::mpsc::{sync_channel, SyncSender};
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use warp::{Filter, Rejection, Reply};
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 use futures_util::StreamExt;
 
@@ -18,7 +19,7 @@ use warp::sse::Event;
 
 use uuid::Uuid;
 
-use app::{init_model, Model, RocketJamApp, ToBackend, ToClient};
+use app::{init_model, ClientMessage, Model, RocketJamApp, ToBackend, ToClient};
 use log::{info, warn};
 
 #[derive(Serialize, Deserialize)]
@@ -112,6 +113,17 @@ async fn main() {
         clients_by_token: Arc::new(RwLock::new(HashMap::new())),
         model: Arc::new(RwLock::new(init_model())),
     };
+    let model2 = env.model.clone();
+    let clients_by_token2 = env.clients_by_token.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(1));
+        let msgs = RocketJamApp::tick(&model2);
+        let clients_by_token = clients_by_token2.read().unwrap();
+        for client_message in msgs {
+            send_to_user(client_message, &clients_by_token);
+        }
+    });
+
     let static_files = warp::any().and(warp::fs::dir("client"));
 
     let login = warp::path("login")
@@ -137,31 +149,8 @@ async fn main() {
             if let Some(client) = clients_by_token.get(&action.token) {
                 let to_clients =
                     RocketJamApp::update(client.user_id, &env.model, action.to_backend);
-                for (user_id, to_client) in to_clients {
-                    let senders_for_user = clients_by_token
-                        .values()
-                        .filter(|c| c.user_id == user_id)
-                        .map(|c| match &c.sender {
-                            Some(sender) => Some((&c.token, sender)),
-                            None => None,
-                        })
-                        .flatten();
-                    if senders_for_user.clone().count().eq(&0) {
-                        warn!(
-                            "No clients for user {:?} to send response to",
-                            &client.user_id
-                        );
-                    }
-
-                    senders_for_user.for_each(|(token, sender)| {
-                        info!(
-                            "Sending to client {:?} ({:?}: {:?})",
-                            &token, &user_id, &to_client
-                        );
-                        sender
-                            .send(ToClientEnvelope::AppMsg(to_client.clone()))
-                            .expect("Could not send msg to client");
-                    });
+                for client_message in to_clients {
+                    send_to_user(client_message, &clients_by_token);
                 }
             }
             std::thread::sleep(std::time::Duration::from_millis(1000));
@@ -171,6 +160,33 @@ async fn main() {
     warp::serve(post_routes.or(static_files).or(get_routes))
         .run(([127, 0, 0, 1], 3030))
         .await;
+}
+
+fn send_to_user(
+    (user_id, to_client): ClientMessage,
+    clients_by_token: &RwLockReadGuard<HashMap<String, Client>>,
+) {
+    let senders_for_user = clients_by_token
+        .values()
+        .filter(|c| c.user_id == user_id)
+        .map(|c| match &c.sender {
+            Some(sender) => Some((&c.token, sender)),
+            None => None,
+        })
+        .flatten();
+    if senders_for_user.clone().count().eq(&0) {
+        warn!("No clients for user {:?} to send response to", &user_id);
+    }
+
+    senders_for_user.for_each(|(token, sender)| {
+        info!(
+            "Sending to client {:?} ({:?}: {:?})",
+            &token, &user_id, &to_client
+        );
+        sender
+            .send(ToClientEnvelope::AppMsg(to_client.clone()))
+            .expect("Could not send msg to client");
+    });
 }
 
 async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply, Rejection> {
