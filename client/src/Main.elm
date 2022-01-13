@@ -1,6 +1,6 @@
 port module Main exposing (..)
 
-import Api exposing (ClientState, ToBackend(..), ToClient(..), sendAction)
+import Api exposing (ClientState(..), ToBackend(..), ToClient(..), sendAction)
 import Browser
 import Html exposing (Html, div)
 import Json.Decode as Decode
@@ -9,6 +9,7 @@ import Pages.Login as Login exposing (Msg(..))
 import Pages.Menu as Menu
 import Pages.Round as Round
 import Session exposing (Session)
+import Time
 
 
 port toClientEvent : (Value -> msg) -> Sub msg
@@ -88,8 +89,11 @@ update msg model =
                     Cmd.none
             )
 
+        ( ChangeToRound session clientState, OnRound roundModel ) ->
+            ( OnRound (Round.updateClientState session clientState (Just roundModel)), Cmd.none )
+
         ( ChangeToRound session clientState, _ ) ->
-            ( OnRound (Round.fromEnterRound session clientState), Cmd.none )
+            ( OnRound (Round.updateClientState session clientState Nothing), Cmd.none )
 
         ( ForLogin ((Login.GotLoginResponse httpResponse) as subMsg), OnLogin subModel ) ->
             let
@@ -195,7 +199,27 @@ onEvent model value =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.batch [ toClientEvent (onEvent model), sseConnected (\_ -> SSEConnected) ]
+    let
+        sseEventFromPort =
+            toClientEvent (onEvent model)
+
+        sseConnectedPort =
+            sseConnected (\_ -> SSEConnected)
+
+        tick =
+            case model of
+                OnRound { clientState } ->
+                    case clientState of
+                        Just (InLevel _) ->
+                            Time.every 1000 (\_ -> ForRound Round.Tick)
+
+                        _ ->
+                            Sub.none
+
+                _ ->
+                    Sub.none
+    in
+    Sub.batch [ sseEventFromPort, sseConnectedPort, tick ]
 
 
 

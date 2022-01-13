@@ -153,7 +153,6 @@ async fn main() {
                     send_to_user(client_message, &clients_by_token);
                 }
             }
-            std::thread::sleep(std::time::Duration::from_millis(1000));
         }
     });
 

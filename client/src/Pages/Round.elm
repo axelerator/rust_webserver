@@ -1,15 +1,16 @@
 module Pages.Round exposing
     ( Model
-    , Msg
-    , fromEnterRound
+    , Msg(..)
     , gotEvent
     , toSession
     , update
+    , updateClientState
     , view
     )
 
 import Api exposing (ClientState(..), ToBackend(..), ToClient(..), ToClientEnvelope(..), sendAction)
-import Html exposing (Html, button, div, li, p, text, ul)
+import Html exposing (Html, button, div, li, p, span, text, ul)
+import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 import Session exposing (Session)
 
@@ -18,6 +19,7 @@ type alias Model =
     { session : Session
     , events : List ToClient
     , clientState : Maybe ClientState
+    , instructionOpacity : Float
     }
 
 
@@ -26,12 +28,32 @@ toSession =
     .session
 
 
-fromEnterRound : Session -> ClientState -> Model
-fromEnterRound session clientState =
-    { session = session
-    , events = []
-    , clientState = Just clientState
-    }
+updateClientState : Session -> ClientState -> Maybe Model -> Model
+updateClientState session clientState mbOldState =
+    case ( clientState, mbOldState ) of
+        ( InLevel newClientState, Just oldModel ) ->
+            { session = session
+            , events = []
+            , clientState = Just clientState
+            , instructionOpacity =
+                case oldModel.clientState of
+                    Just (InLevel cs) ->
+                        if newClientState.currentInstruction == cs.currentInstruction then
+                            oldModel.instructionOpacity
+
+                        else
+                            1.0
+
+                    _ ->
+                        1.0
+            }
+
+        _ ->
+            { session = session
+            , events = []
+            , clientState = Just clientState
+            , instructionOpacity = 1.0
+            }
 
 
 gotEvent : ToClient -> Msg
@@ -44,6 +66,7 @@ type Msg
     | EventDecoderError String
     | GotEvent ToClient
     | SendAction ToBackend
+    | Tick
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -51,6 +74,11 @@ update msg model =
     case msg of
         NoOp ->
             ( model, Cmd.none )
+
+        Tick ->
+            ( { model | instructionOpacity = model.instructionOpacity - 0.2 }
+            , Cmd.none
+            )
 
         EventDecoderError e ->
             ( Debug.log e model, Cmd.none )
@@ -86,12 +114,12 @@ view model =
                 text "waiting"
 
             Just state ->
-                viewGame state
+                viewGame state model.instructionOpacity
         ]
 
 
-viewGame : ClientState -> Html Msg
-viewGame client_state =
+viewGame : ClientState -> Float -> Html Msg
+viewGame client_state opacity =
     case client_state of
         Lobby { playerCount, playerReadyCount } ->
             div []
@@ -121,6 +149,10 @@ viewGame client_state =
             in
             div []
                 [ p [] [ text "Instructions executed: ", text <| String.fromInt instructionsExecuted ]
-                , p [] [ text "instruction:", text currentInstruction ]
+                , p []
+                    [ text "instruction:"
+                    , span [ style "opacity" (String.fromFloat opacity) ]
+                        [ text currentInstruction ]
+                    ]
                 , ul [] <| List.map mkUiItem uiItems
                 ]
