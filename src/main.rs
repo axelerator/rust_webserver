@@ -1,25 +1,26 @@
 mod app;
+mod env;
+mod user;
 
+use env::{Client, Env, ToClientEnvelope};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use sqlx::postgres::PgPoolOptions;
-use sqlx::PgPool;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::time::Duration;
-use tokio::sync::mpsc::UnboundedSender;
+use user::User;
 use warp::{Filter, Rejection, Reply};
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
-
-use futures_util::StreamExt;
 
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::sse::Event;
 
 use uuid::Uuid;
 
-use app::{init_model, ClientMessage, Model, RocketJamApp, ToBackend, ToClient};
+use app::{init_model, ClientMessage, RocketJamApp, ToBackend};
 use log::{info, warn};
 
 #[derive(Serialize, Deserialize)]
@@ -60,28 +61,6 @@ enum ActionResponse {
 #[derive(Serialize, Deserialize)]
 struct ConnectRequest {
     token: String,
-}
-
-#[derive(Debug)]
-struct Client {
-    token: String,
-    user_id: i32,
-    sender: Option<UnboundedSender<ToClientEnvelope>>,
-}
-
-type ClientsByToken = Arc<RwLock<HashMap<String, Client>>>;
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-enum ToClientEnvelope {
-    SuperSeeded(),
-    AppMsg(ToClient),
-}
-
-#[derive(Clone)]
-struct Env {
-    pool: PgPool,
-    clients_by_token: ClientsByToken,
-    model: Arc<RwLock<Model>>,
 }
 
 fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
@@ -269,11 +248,4 @@ async fn event_handler(token: String, env: Env) -> std::result::Result<impl Repl
     } else {
         Err(warp::reject::not_found())
     }
-}
-
-#[derive(Clone, sqlx::FromRow)]
-struct User {
-    id: i32,
-    username: String,
-    hashed_password: String,
 }

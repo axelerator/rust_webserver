@@ -5,6 +5,8 @@ use rand::{prelude::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::user::UserId;
+
 const ITEMS: &'static [&'static str] = &[
     "Chemex Coffeemaker",
     "Sound system",
@@ -19,8 +21,6 @@ const ITEMS: &'static [&'static str] = &[
     "Fireplace",
     "Ventilation",
 ];
-
-type UserId = i32;
 
 pub struct Model {
     pub games_by_id: HashMap<RoundId, RocketJamRound>,
