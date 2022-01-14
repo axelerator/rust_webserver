@@ -131,7 +131,7 @@ viewGame client_state opacity =
                 , button [ onClick <| SendAction ToggleReady ] [ text "Ready" ]
                 ]
 
-        InLevel { currentInstruction, uiItems, instructionsExecuted } ->
+        InLevel { currentInstruction, uiItems, instructionsExecuted, instructionsMissed } ->
             let
                 mkUiItem { label, state, id } =
                     li []
@@ -149,6 +149,7 @@ viewGame client_state opacity =
             in
             div []
                 [ p [] [ text "Instructions executed: ", text <| String.fromInt instructionsExecuted ]
+                , p [] [ text "Instructions missed: ", text <| String.fromInt instructionsMissed ]
                 , p []
                     [ text "instruction:"
                     , span [ style "opacity" (String.fromFloat opacity) ]

@@ -123,6 +123,7 @@ type alias InLevelDetails =
     { currentInstruction : String
     , uiItems : List UiItem
     , instructionsExecuted : Int
+    , instructionsMissed : Int
     }
 
 
@@ -158,10 +159,11 @@ decodeInLevel : Decoder ClientState
 decodeInLevel =
     let
         details =
-            Decode.map3 InLevelDetails
+            Decode.map4 InLevelDetails
                 (field "current_instruction" Decode.string)
                 (field "ui_items" (Decode.list decodeUiItem))
                 (field "instructions_executed" Decode.int)
+                (field "instructions_missed" Decode.int)
     in
     Decode.map InLevel
         (field "InGame" details)
