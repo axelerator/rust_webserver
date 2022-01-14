@@ -58,6 +58,7 @@ pub struct RoundState {
     items: Vec<Item>,
     instructions: Vec<Instruction>,
     instructions_executed: usize,
+    instructions_missed: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -94,6 +95,7 @@ pub enum ClientState {
         current_instruction: String,
         ui_items: Vec<ClientUiItem>,
         instructions_executed: usize,
+        instructions_missed: usize,
     },
 }
 
@@ -150,6 +152,7 @@ fn level_for_user(user_id: UserId, round_state: &RoundState) -> Option<ClientSta
         current_instruction,
         ui_items,
         instructions_executed: round_state.instructions_executed,
+        instructions_missed: round_state.instructions_missed,
     })
 }
 
@@ -221,14 +224,14 @@ fn tick_round(round: &RocketJamRound, current_tick: i32) -> (RocketJamRound, Vec
     match &round.game {
         RocketJam::InLevel(round_state) => {
             let mut instructions: Vec<Instruction> = Vec::new();
+            let mut instructions_missed = round_state.instructions_missed;
             let mut updated = false;
             for instruction in &round_state.instructions {
                 if instruction.eol_tick == current_tick {
-                    // instructions_missed += 1;
+                    instructions_missed += 1;
                     if let Some(instruction) =
                         mk_instructions(instruction.user_id, &round_state.items, current_tick)
                     {
-                        info!("NEW INSTRUCTION {:?}", &instruction);
                         instructions.push(instruction);
                         updated = true;
                     } else {
@@ -240,6 +243,7 @@ fn tick_round(round: &RocketJamRound, current_tick: i32) -> (RocketJamRound, Vec
             }
             let updated_round_state = RoundState {
                 instructions,
+                instructions_missed,
                 ..round_state.clone()
             };
 
@@ -500,6 +504,7 @@ fn toggle_ready(
                 available_items,
                 instructions,
                 instructions_executed: 0,
+                instructions_missed: 0,
             });
             RocketJamRound {
                 game,
