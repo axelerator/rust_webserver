@@ -29,7 +29,13 @@ async fn main() {
         });
 
     let thread_env = env.clone();
-    std::thread::spawn(move || loop {
+    std::thread::spawn(move || ticker(thread_env));
+
+    warp::serve(hello).run(([127, 0, 0, 1], 3030)).await;
+}
+
+fn ticker(thread_env: Env) {
+    loop {
         std::thread::sleep(Duration::from_secs(3));
         let users = thread_env.users.read().unwrap();
         let mut ages = thread_env.ages.write().unwrap();
@@ -42,9 +48,7 @@ async fn main() {
             info!("tick for user {:?} {:?}", user, new_age);
             ages.insert(user.clone(), new_age);
         }
-    });
-
-    warp::serve(hello).run(([127, 0, 0, 1], 3030)).await;
+    }
 }
 
 fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
