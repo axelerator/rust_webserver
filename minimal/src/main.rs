@@ -25,9 +25,13 @@ async fn main() {
             format!("Hello, {}!", name)
         });
 
+    let thread_env = env.clone();
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(3));
-        info!("tick");
+        let users = thread_env.users.read().unwrap();
+        for user in users.iter() {
+            info!("tick for user {:?}", user);
+        }
     });
 
     warp::serve(hello).run(([127, 0, 0, 1], 3030)).await;
