@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-use warp::Filter;
+use warp::{Filter, Future};
 
 #[derive(Clone)]
 struct Env {
@@ -29,25 +29,43 @@ async fn main() {
         });
 
     let thread_env = env.clone();
+
     std::thread::spawn(move || ticker(thread_env));
+    //tokio::spawn(async { ticker(thread_env) });
 
     warp::serve(hello).run(([127, 0, 0, 1], 3030)).await;
 }
 
-fn ticker(thread_env: Env) {
+async fn ticker(thread_env: Env) {
     loop {
         std::thread::sleep(Duration::from_secs(3));
         let users = thread_env.users.read().unwrap();
         let mut ages = thread_env.ages.write().unwrap();
         for user in users.iter() {
             let previous_age = ages.get(user);
+            let x = bar().await;
             let new_age = match previous_age {
                 None => 0,
-                Some(i) => i + 1,
+                Some(i) => i + x,
             };
             info!("tick for user {:?} {:?}", user, new_age);
             ages.insert(user.clone(), new_age);
         }
+    }
+}
+//
+// `foo()` returns a type that implements `Future<Output = usize>`.
+// `foo().await` will result in a value of type `usize`.
+async fn foo() -> usize {
+    5
+}
+
+fn bar() -> impl Future<Output = usize> {
+    // This `async` block results in a type that implements
+    // `Future<Output = usize>`.
+    async {
+        let x: usize = foo().await;
+        x + 5
     }
 }
 
