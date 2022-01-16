@@ -16,6 +16,17 @@ pub struct Env {
     pub model: Arc<RwLock<Model>>,
 }
 
+/*
+pub async fn auth_handler(env: &Env, login: Login)  {
+    let user = sqlx::query_as::<_, User>(
+        "SELECT id, username, hashed_password FROM users WHERE username = $1",
+    )
+    .bind(login.username)
+    .fetch_one(&env.pool)
+    .await;
+}
+*/
+
 #[derive(Debug)]
 pub struct Client {
     pub token: String,
