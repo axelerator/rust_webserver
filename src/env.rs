@@ -7,13 +7,17 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::app::{Model, ToClient};
+use crate::{
+    app::{Model, ToClient},
+    user::UserServiceImpl,
+};
 
 #[derive(Clone)]
 pub struct Env {
     pub pool: PgPool,
     pub clients_by_token: ClientsByToken,
     pub model: Arc<RwLock<Model>>,
+    pub user_service: UserServiceImpl,
 }
 
 /*

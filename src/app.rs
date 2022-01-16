@@ -5,7 +5,7 @@ use rand::{prelude::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::user::UserId;
+use crate::user::{User, UserId};
 
 const ITEMS: &'static [&'static str] = &[
     "Chemex Coffeemaker",
@@ -187,10 +187,10 @@ impl RocketJamApp {
         msgs
     }
 
-    pub fn update(user_id: UserId, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
-        if let Some(round) = find_game_by_user_id(&user_id, model) {
+    pub fn update(user: &User, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
+        if let Some(round) = find_game_by_user_id(&user.id, model) {
             let mut model = model.write().unwrap();
-            let updated_round = update_round(user_id, &round, &msg, model.tick);
+            let updated_round = update_round(user.id, &round, &msg, model.tick);
             let round_id = round.id;
             model
                 .games_by_id
@@ -210,10 +210,10 @@ impl RocketJamApp {
                 .collect()
         } else {
             return match msg {
-                ToBackend::Init => get_available_rounds(user_id, model),
-                ToBackend::StartGame => start_game(user_id, model),
-                ToBackend::GetAvailableRounds => get_available_rounds(user_id, model),
-                ToBackend::JoinGame { round_id } => join_game(user_id, &round_id, model),
+                ToBackend::Init => get_available_rounds(user.id, model),
+                ToBackend::StartGame => start_game(user.id, model),
+                ToBackend::GetAvailableRounds => get_available_rounds(user.id, model),
+                ToBackend::JoinGame { round_id } => join_game(user.id, &round_id, model),
                 _ => vec![],
             };
         }

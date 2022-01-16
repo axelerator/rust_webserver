@@ -7,9 +7,8 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use sqlx::postgres::PgPoolOptions;
-use std::sync::mpsc::{sync_channel, SyncSender};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::time::Duration;
-use user::User;
 use warp::{Filter, Rejection, Reply};
 
 use std::collections::HashMap;
@@ -21,7 +20,9 @@ use warp::sse::Event;
 use uuid::Uuid;
 
 use app::{init_model, ClientMessage, RocketJamApp, ToBackend};
-use log::{info, warn};
+use log::{error, info, warn};
+
+use crate::user::UserServiceImpl;
 
 #[derive(Serialize, Deserialize)]
 struct Login {
@@ -87,11 +88,14 @@ async fn main() {
         .await
         .unwrap();
 
+    let user_service = UserServiceImpl::new(&pool);
     let env = Env {
         pool: pool.clone(),
         clients_by_token: Arc::new(RwLock::new(HashMap::new())),
         model: Arc::new(RwLock::new(init_model())),
+        user_service: user_service,
     };
+
     let model2 = env.model.clone();
     let clients_by_token2 = env.clients_by_token.clone();
     std::thread::spawn(move || loop {
@@ -122,14 +126,20 @@ async fn main() {
 
     let post_routes = warp::post().and(login.or(action));
     let get_routes = warp::get().and(event_route);
-    std::thread::spawn(move || {
+    tokio::spawn(async {
+        let user_by_id = env.user_service.find_user(42).await;
         for action in receiver.iter() {
             let clients_by_token = env.clients_by_token.read().unwrap();
             if let Some(client) = clients_by_token.get(&action.token) {
-                let to_clients =
-                    RocketJamApp::update(client.user_id, &env.model, action.to_backend);
-                for client_message in to_clients {
-                    send_to_user(client_message, &clients_by_token);
+                let user_by_id = env.user_service.find_user(client.user_id).await;
+                match user_by_id {
+                    None => error!("Client references missing user {:?}", client.user_id),
+                    Some(user) => {
+                        let to_clients = RocketJamApp::update(&user, &env.model, action.to_backend);
+                        for client_message in to_clients {
+                            send_to_user(client_message, &clients_by_token);
+                        }
+                    }
                 }
             }
         }
@@ -138,6 +148,25 @@ async fn main() {
     warp::serve(post_routes.or(static_files).or(get_routes))
         .run(([127, 0, 0, 1], 3030))
         .await;
+}
+
+async fn process_actions(env: Env, receiver: Receiver<ToBackendEnvelope>) -> () {
+    let user_by_id = env.user_service.find_user(42).await;
+    for action in receiver.iter() {
+        let clients_by_token = env.clients_by_token.read().unwrap();
+        if let Some(client) = clients_by_token.get(&action.token) {
+            let user_by_id = env.user_service.find_user(client.user_id).await;
+            match user_by_id {
+                None => error!("Client references missing user {:?}", client.user_id),
+                Some(user) => {
+                    let to_clients = RocketJamApp::update(&user, &env.model, action.to_backend);
+                    for client_message in to_clients {
+                        send_to_user(client_message, &clients_by_token);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn send_to_user(
@@ -168,15 +197,12 @@ fn send_to_user(
 }
 
 async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply, Rejection> {
-    let user = sqlx::query_as::<_, User>(
-        "SELECT id, username, hashed_password FROM users WHERE username = $1",
-    )
-    .bind(login.username)
-    .fetch_one(&env.pool)
-    .await;
-
+    let user = env
+        .user_service
+        .find_user_by_name_and_password(&login.username, &login.password)
+        .await;
     let login_response = match user {
-        Ok(user) => {
+        Some(user) => {
             if user.hashed_password.eq(&login.password) {
                 //let mut map = env.clients_by_token.lock().unwrap();
                 let mut map = env.clients_by_token.write().expect("RwLock poisoned");
@@ -200,7 +226,7 @@ async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply,
                 })
             }
         }
-        Err(_) => LoginResponse::Failure(LoginFailureDetails {
+        _ => LoginResponse::Failure(LoginFailureDetails {
             msg: "not found".to_string(),
         }),
     };
@@ -212,6 +238,7 @@ async fn action_handler(
     action: ToBackendEnvelope,
 ) -> std::result::Result<impl Reply, Rejection> {
     info!("Received action {:?}", action);
+    // should probably do auth & resolution to user already here?
     sender.send(action.clone()).unwrap();
     Ok(warp::reply::json(&action))
 }
