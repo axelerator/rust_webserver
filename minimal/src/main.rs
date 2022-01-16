@@ -1,4 +1,8 @@
-use std::sync::{Arc, RwLock};
+use log::info;
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use warp::Filter;
 
 #[derive(Clone)]
@@ -8,6 +12,7 @@ struct Env {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let env = Env {
         users: Arc::new(RwLock::new(Vec::new())),
     };
@@ -16,8 +21,14 @@ async fn main() {
         .and(with_env(env.clone()))
         .map(|name: String, env: Env| {
             env.users.write().unwrap().push(name.clone());
+            info!("User {:?} connected", name);
             format!("Hello, {}!", name)
         });
+
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(3));
+        info!("tick");
+    });
 
     warp::serve(hello).run(([127, 0, 0, 1], 3030)).await;
 }
