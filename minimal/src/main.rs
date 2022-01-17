@@ -23,7 +23,7 @@ async fn main() {
         .then(|name: String, env: Env| async move {
             env.users.write().await.push(name.clone());
             info!("User {:?} connected", name);
-            Ok(name)
+            name
         });
 
     let thread_env = env.clone();
