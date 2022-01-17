@@ -1,9 +1,7 @@
 use log::info;
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::sync::RwLock;
+use tokio::time::sleep;
 use warp::{Filter, Future};
 
 #[derive(Clone)]
@@ -22,25 +20,25 @@ async fn main() {
     // GET /hello/warp => 200 OK with body "Hello, warp!"
     let hello = warp::path!("hello" / String)
         .and(with_env(env.clone()))
-        .map(|name: String, env: Env| {
-            env.users.write().unwrap().push(name.clone());
+        .then(|name: String, env: Env| async move {
+            env.users.write().await.push(name.clone());
             info!("User {:?} connected", name);
-            format!("Hello, {}!", name)
+            Ok(name)
         });
 
     let thread_env = env.clone();
 
-    std::thread::spawn(move || ticker(thread_env));
-    //tokio::spawn(async { ticker(thread_env) });
+    info!("Starting thread");
+    tokio::spawn(async { ticker(thread_env).await });
 
     warp::serve(hello).run(([127, 0, 0, 1], 3030)).await;
 }
 
 async fn ticker(thread_env: Env) {
     loop {
-        std::thread::sleep(Duration::from_secs(3));
-        let users = thread_env.users.read().unwrap();
-        let mut ages = thread_env.ages.write().unwrap();
+        sleep(Duration::from_secs(3)).await;
+        let users = thread_env.users.read().await;
+        let mut ages = thread_env.ages.write().await;
         for user in users.iter() {
             let previous_age = ages.get(user);
             let x = bar().await;
