@@ -1,11 +1,8 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{mpsc::UnboundedSender, RwLock};
 
 use crate::{
     app::{Model, ToClient},

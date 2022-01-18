@@ -1,8 +1,3 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
-
 use log::error;
 use sqlx::PgPool;
 

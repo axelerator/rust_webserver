@@ -7,12 +7,16 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use sqlx::postgres::PgPoolOptions;
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+//use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::time::Duration;
+use tokio::{
+    sync::{mpsc::Sender, RwLock, RwLockReadGuard},
+    time::sleep,
+};
 use warp::{Filter, Rejection, Reply};
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::Arc;
 
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::sse::Event;
@@ -80,7 +84,7 @@ async fn main() {
     let v = serde_json::to_string(&be);
     println!("json {:?}", v);
 
-    let (sender, receiver) = sync_channel::<ToBackendEnvelope>(3);
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<ToBackendEnvelope>(32);
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -93,17 +97,19 @@ async fn main() {
         pool: pool.clone(),
         clients_by_token: Arc::new(RwLock::new(HashMap::new())),
         model: Arc::new(RwLock::new(init_model())),
-        user_service: user_service,
+        user_service,
     };
 
     let model2 = env.model.clone();
     let clients_by_token2 = env.clients_by_token.clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(1));
-        let msgs = RocketJamApp::tick(&model2);
-        let clients_by_token = clients_by_token2.read().unwrap();
-        for client_message in msgs {
-            send_to_user(client_message, &clients_by_token);
+    tokio::spawn(async move {
+        loop {
+            sleep(Duration::from_secs(1)).await;
+            let msgs = RocketJamApp::tick(&model2).await;
+            let clients_by_token = clients_by_token2.read().await;
+            for client_message in msgs {
+                send_to_user(client_message, &clients_by_token);
+            }
         }
     });
 
@@ -126,17 +132,18 @@ async fn main() {
 
     let post_routes = warp::post().and(login.or(action));
     let get_routes = warp::get().and(event_route);
-    tokio::spawn(async {
-        let user_by_id = env.user_service.find_user(42).await;
-        for action in receiver.iter() {
-            let clients_by_token = env.clients_by_token.read().unwrap();
+    tokio::spawn(async move {
+        //let user_by_id = env.user_service.find_user(42).await;
+
+        while let Some(action) = receiver.recv().await {
+            let clients_by_token = env.clients_by_token.read().await;
             if let Some(client) = clients_by_token.get(&action.token) {
                 let user_by_id = env.user_service.find_user(client.user_id).await;
                 match user_by_id {
                     None => error!("Client references missing user {:?}", client.user_id),
                     Some(user) => {
                         let to_clients = RocketJamApp::update(&user, &env.model, action.to_backend);
-                        for client_message in to_clients {
+                        for client_message in to_clients.await {
                             send_to_user(client_message, &clients_by_token);
                         }
                     }
@@ -148,25 +155,6 @@ async fn main() {
     warp::serve(post_routes.or(static_files).or(get_routes))
         .run(([127, 0, 0, 1], 3030))
         .await;
-}
-
-async fn process_actions(env: Env, receiver: Receiver<ToBackendEnvelope>) -> () {
-    let user_by_id = env.user_service.find_user(42).await;
-    for action in receiver.iter() {
-        let clients_by_token = env.clients_by_token.read().unwrap();
-        if let Some(client) = clients_by_token.get(&action.token) {
-            let user_by_id = env.user_service.find_user(client.user_id).await;
-            match user_by_id {
-                None => error!("Client references missing user {:?}", client.user_id),
-                Some(user) => {
-                    let to_clients = RocketJamApp::update(&user, &env.model, action.to_backend);
-                    for client_message in to_clients {
-                        send_to_user(client_message, &clients_by_token);
-                    }
-                }
-            }
-        }
-    }
 }
 
 fn send_to_user(
@@ -205,7 +193,7 @@ async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply,
         Some(user) => {
             if user.hashed_password.eq(&login.password) {
                 //let mut map = env.clients_by_token.lock().unwrap();
-                let mut map = env.clients_by_token.write().expect("RwLock poisoned");
+                let map = env.clients_by_token.write();
                 let token = Uuid::new_v4();
 
                 let client = Client {
@@ -214,7 +202,7 @@ async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply,
                     sender: None,
                 };
 
-                map.insert(token.to_string(), client);
+                map.await.insert(token.to_string(), client);
 
                 LoginResponse::Success(LoginSuccessDetails {
                     token: token.to_string(),
@@ -234,17 +222,17 @@ async fn auth_handler(env: Env, login: Login) -> std::result::Result<impl Reply,
 }
 
 async fn action_handler(
-    sender: SyncSender<ToBackendEnvelope>,
+    sender: Sender<ToBackendEnvelope>,
     action: ToBackendEnvelope,
 ) -> std::result::Result<impl Reply, Rejection> {
     info!("Received action {:?}", action);
     // should probably do auth & resolution to user already here?
-    sender.send(action.clone()).unwrap();
+    sender.send(action.clone()).await;
     Ok(warp::reply::json(&action))
 }
 
 async fn event_handler(token: String, env: Env) -> std::result::Result<impl Reply, Rejection> {
-    let mut clients_by_token = env.clients_by_token.write().unwrap();
+    let mut clients_by_token = env.clients_by_token.write().await;
     if let Some(client) = clients_by_token.get(&token) {
         // logout previously registered client
         if let Some(sender) = &client.sender {

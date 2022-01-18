@@ -1,8 +1,9 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::collections::HashMap;
 
 use log::{error, info, warn};
 use rand::{prelude::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::user::{User, UserId};
@@ -172,8 +173,8 @@ pub struct RocketJamApp {}
 pub type ClientMessage = (UserId, ToClient);
 
 impl RocketJamApp {
-    pub fn tick(model: &RwLock<Model>) -> Vec<ClientMessage> {
-        let mut model = model.write().unwrap();
+    pub async fn tick(model: &RwLock<Model>) -> Vec<ClientMessage> {
+        let mut model = model.write().await;
         let mut updated_rounds = HashMap::new();
         let mut msgs = Vec::new();
         for (key, round) in model.games_by_id.iter() {
@@ -187,9 +188,9 @@ impl RocketJamApp {
         msgs
     }
 
-    pub fn update(user: &User, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
-        if let Some(round) = find_game_by_user_id(&user.id, model) {
-            let mut model = model.write().unwrap();
+    pub async fn update(user: &User, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
+        if let Some(round) = find_game_by_user_id(&user.id, model).await {
+            let mut model = model.write().await;
             let updated_round = update_round(user.id, &round, &msg, model.tick);
             let round_id = round.id;
             model
@@ -210,10 +211,10 @@ impl RocketJamApp {
                 .collect()
         } else {
             return match msg {
-                ToBackend::Init => get_available_rounds(user.id, model),
-                ToBackend::StartGame => start_game(user.id, model),
-                ToBackend::GetAvailableRounds => get_available_rounds(user.id, model),
-                ToBackend::JoinGame { round_id } => join_game(user.id, &round_id, model),
+                ToBackend::Init => get_available_rounds(user.id, model).await,
+                ToBackend::StartGame => start_game(user.id, model).await,
+                ToBackend::GetAvailableRounds => get_available_rounds(user.id, model).await,
+                ToBackend::JoinGame { round_id } => join_game(user.id, &round_id, model).await,
                 _ => vec![],
             };
         }
@@ -275,8 +276,12 @@ fn tick_round(round: &RocketJamRound, current_tick: i32) -> (RocketJamRound, Vec
     }
 }
 
-fn join_game(user_id: UserId, round_id: &RoundId, model: &RwLock<Model>) -> Vec<ClientMessage> {
-    let round = find_round_by_id(round_id, model);
+async fn join_game(
+    user_id: UserId,
+    round_id: &RoundId,
+    model: &RwLock<Model>,
+) -> Vec<ClientMessage> {
+    let round = find_round_by_id(round_id, model).await;
     match round {
         Some(round) => {
             let other_players = round.players.iter();
@@ -289,7 +294,7 @@ fn join_game(user_id: UserId, round_id: &RoundId, model: &RwLock<Model>) -> Vec<
             };
 
             let client_state = client_state_for_user(user_id, &round_with_user);
-            let mut model = model.write().unwrap();
+            let mut model = model.write().await;
             let round_id = &round_with_user.id;
             model
                 .games_by_id
@@ -332,15 +337,15 @@ fn join_game(user_id: UserId, round_id: &RoundId, model: &RwLock<Model>) -> Vec<
     }
 }
 
-fn find_round_by_id(round_id: &RoundId, model: &RwLock<Model>) -> Option<RocketJamRound> {
-    match model.read().unwrap().games_by_id.get(round_id) {
+async fn find_round_by_id(round_id: &RoundId, model: &RwLock<Model>) -> Option<RocketJamRound> {
+    match model.read().await.games_by_id.get(round_id) {
         Some(round) => Some(round.clone()),
         None => None,
     }
 }
 
-fn get_available_rounds(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
-    let model = model.read().unwrap();
+async fn get_available_rounds(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
+    let model = model.read().await;
     let round_ids: Vec<String> = model
         .games_by_id
         .values()
@@ -356,9 +361,9 @@ fn get_available_rounds(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMes
     vec![(user_id, ToClient::AvailableRounds { round_ids })]
 }
 
-fn start_game(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
+async fn start_game(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
     let new_round = init_rocket_jam(user_id);
-    let mut model = model.write().unwrap();
+    let mut model = model.write().await;
     model
         .game_ids_by_user_id
         .insert(user_id, new_round.id.to_string());
@@ -371,8 +376,8 @@ fn start_game(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
     vec![]
 }
 
-fn find_game_by_user_id(user_id: &UserId, model: &RwLock<Model>) -> Option<RocketJamRound> {
-    let model = model.read().unwrap();
+async fn find_game_by_user_id(user_id: &UserId, model: &RwLock<Model>) -> Option<RocketJamRound> {
+    let model = model.read().await;
     if let Some(game_id) = model.game_ids_by_user_id.get(&user_id) {
         if let Some(round) = model.games_by_id.get(game_id) {
             return Some(round.clone());
