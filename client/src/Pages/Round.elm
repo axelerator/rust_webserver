@@ -9,9 +9,9 @@ module Pages.Round exposing
     )
 
 import Api exposing (ClientState(..), ToBackend(..), ToClient(..), ToClientEnvelope(..), sendAction)
-import Html exposing (Html, button, div, li, p, span, text, ul)
-import Html.Attributes exposing (style)
-import Html.Events exposing (onClick)
+import Html.Styled exposing (Html, button, div, li, p, span, text, ul)
+import Html.Styled.Attributes exposing (style)
+import Html.Styled.Events exposing (onClick)
 import Session exposing (Session)
 
 

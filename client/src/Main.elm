@@ -2,7 +2,10 @@ port module Main exposing (..)
 
 import Api exposing (ClientState(..), ToBackend(..), ToClient(..), sendAction)
 import Browser
-import Html exposing (Html, div)
+import Css exposing (Rem, Style, absolute, backgroundColor, hex, position, px, rem, top, transform, translateX, translateY, vh, vw, width)
+import Css.Transitions exposing (easeIn, easeInOut, transition)
+import Html.Styled exposing (Attribute, Html, div, text, toUnstyled)
+import Html.Styled.Attributes exposing (css)
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
 import Pages.Login as Login exposing (Msg(..))
@@ -27,7 +30,7 @@ main =
         { init = init
         , update = update
         , subscriptions = subscriptions
-        , view = view
+        , view = view >> toUnstyled
         }
 
 
@@ -226,16 +229,161 @@ subscriptions model =
 -- VIEW
 
 
+type Shade
+    = S0
+    | S1
+    | S2
+    | S3
+    | S4
+    | S5
+
+
+type Col
+    = Charocal
+    | Aqua
+
+
+toCol : ( Col, Shade ) -> Css.Color
+toCol ( col, shade ) =
+    case col of
+        Charocal ->
+            hex <|
+                case shade of
+                    S0 ->
+                        "111111"
+
+                    S1 ->
+                        "333333"
+
+                    S2 ->
+                        "888888"
+
+                    S3 ->
+                        "BBBBBB"
+
+                    S4 ->
+                        "DDDDDD"
+
+                    S5 ->
+                        "F0F0F0"
+
+        Aqua ->
+            hex "3333DD"
+
+
+type Dist
+    = Tiny
+    | Small
+    | Medium
+    | Big
+    | Large
+
+
+dist : Dist -> Rem
+dist d =
+    case d of
+        Tiny ->
+            rem 0.1
+
+        Small ->
+            rem 0.3
+
+        Medium ->
+            rem 0.5
+
+        Big ->
+            rem 0.8
+
+        Large ->
+            rem 1.0
+
+
+padding : Dist -> Style
+padding =
+    Css.padding << dist
+
+
+card : List (Attribute Msg) -> List (Html Msg) -> Html Msg
+card attrs children =
+    let
+        css_ =
+            css
+                [ backgroundColor <| toCol ( Charocal, S5 )
+                , padding Medium
+                , width <| rem 30
+                ]
+
+        allAttrs =
+            css_ :: attrs
+    in
+    div
+        allAttrs
+        children
+
+
 view : Model -> Html Msg
 view model =
+    let
+        menu m offScreen =
+            card
+                [ css
+                    [ if offScreen then
+                        transform <| translateX (vw -100)
+
+                      else
+                        transform <| translateX (vw 0)
+                    , position absolute
+                    , top <| dist Medium
+                    , transition [ Css.Transitions.transform3 500 0 easeInOut ]
+                    ]
+                ]
+                [ Html.Styled.map ForMenu <| Menu.view m ]
+
+        login m offScreen =
+            card
+                [ css
+                    [ if offScreen then
+                        transform <| translateY (vh -100)
+
+                      else
+                        transform <| translateY (vh 0)
+                    , transition [ Css.Transitions.transform3 500 0 easeInOut ]
+                    ]
+                ]
+                [ Html.Styled.map ForLogin <| Login.view m ]
+    in
     div []
         [ case model of
             OnLogin subModel ->
-                Html.map ForLogin <| Login.view subModel
+                login subModel False
 
-            OnRound subModel ->
-                Html.map ForRound <| Round.view subModel
-
+            _ ->
+                login (Login.init Nothing) True
+        , case model of
             OnMenu subModel ->
-                Html.map ForMenu <| Menu.view subModel
+                menu subModel False
+
+            _ ->
+                menu Menu.dummy True
+        , case model of
+            OnRound subModel ->
+                Html.Styled.map ForRound <| Round.view subModel
+
+            _ ->
+                text ""
         ]
+
+
+
+{-
+   , case model of
+       OnLogin subModel ->
+           Html.map ForLogin <| Login.view subModel
+
+       OnRound subModel ->
+           Html.map ForRound <| Round.view subModel
+
+       OnMenu subModel ->
+           Html.map ForMenu <| Menu.view subModel
+   ]
+-}

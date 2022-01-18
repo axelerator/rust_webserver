@@ -43,7 +43,7 @@ impl UserServiceImpl {
                 match user_query_result {
                     Ok(user) => {
                         // THIS PRODUCES A DEADLOCK
-                        self.user_cache.write().await.insert(user_id, user.clone());
+                        //self.user_cache.write().await.insert(user_id, user.clone());
                         Some(user)
                     }
                     _ => {
