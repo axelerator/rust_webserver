@@ -189,6 +189,7 @@ impl RocketJamApp {
     }
 
     pub async fn update(user: &User, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
+        info!("app update with msg {:?}", msg);
         if let Some(round) = find_game_by_user_id(&user.id, model).await {
             let mut model = model.write().await;
             let updated_round = update_round(user.id, &round, &msg, model.tick);
@@ -345,6 +346,7 @@ async fn find_round_by_id(round_id: &RoundId, model: &RwLock<Model>) -> Option<R
 }
 
 async fn get_available_rounds(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
+    info!("get_availble_rounds for {:?}", user_id);
     let model = model.read().await;
     let round_ids: Vec<String> = model
         .games_by_id
@@ -362,6 +364,7 @@ async fn get_available_rounds(user_id: UserId, model: &RwLock<Model>) -> Vec<Cli
 }
 
 async fn start_game(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage> {
+    info!("Starting new game");
     let new_round = init_rocket_jam(user_id);
     let mut model = model.write().await;
     model

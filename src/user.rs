@@ -1,5 +1,8 @@
+use std::{collections::HashMap, sync::Arc};
+
 use log::error;
 use sqlx::PgPool;
+use tokio::sync::RwLock;
 
 pub type UserId = i32;
 
@@ -13,38 +16,41 @@ pub struct User {
 #[derive(Clone)]
 pub struct UserServiceImpl {
     pool: PgPool,
-    //user_cache: Arc<RwLock<HashMap<UserId, User>>>,
+    user_cache: Arc<RwLock<HashMap<UserId, User>>>,
 }
 
 impl UserServiceImpl {
     pub fn new(pool: &PgPool) -> UserServiceImpl {
         UserServiceImpl {
             pool: pool.clone(),
-            //user_cache: Arc::new(RwLock::new(HashMap::new())),
+            user_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     pub async fn find_user(&self, user_id: UserId) -> Option<User> {
-        //let users_by_id = self.user_cache.read().unwrap();
-        //let maybe_user: Option<&User> = None; //users_by_id.get(&user_id);
-        //match maybe_user {
-        //Some(user) => Some(user.clone()),
-        //None => {
-        let user_query_result = sqlx::query_as::<_, User>(
-            "SELECT id, username, hashed_password FROM users WHERE id = $1",
-        )
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await;
-        match user_query_result {
-            Ok(user) => Some(user),
-            _ => {
-                error!("User not found");
-                None
+        //let users_by_id = self.user_cache.read().await;
+        let maybe_user: Option<&User> = None; //users_by_id.get(&user_id);
+        match maybe_user {
+            Some(user) => Some(user.clone()),
+            None => {
+                let user_query_result = sqlx::query_as::<_, User>(
+                    "SELECT id, username, hashed_password FROM users WHERE id = $1",
+                )
+                .bind(user_id)
+                .fetch_one(&self.pool)
+                .await;
+                match user_query_result {
+                    Ok(user) => {
+                        //self.user_cache.write().await.insert(user_id, user.clone());
+                        Some(user)
+                    }
+                    _ => {
+                        error!("User not found");
+                        None
+                    }
+                }
             }
         }
-        //}
-        //}
     }
 
     pub async fn find_user_by_name_and_password(

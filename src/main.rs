@@ -133,23 +133,26 @@ async fn main() {
     let post_routes = warp::post().and(login.or(action));
     let get_routes = warp::get().and(event_route);
     tokio::spawn(async move {
-        //let user_by_id = env.user_service.find_user(42).await;
-
         while let Some(action) = receiver.recv().await {
+            info!("Processing action {:?}", action);
             let clients_by_token = env.clients_by_token.read().await;
             if let Some(client) = clients_by_token.get(&action.token) {
                 let user_by_id = env.user_service.find_user(client.user_id).await;
                 match user_by_id {
                     None => error!("Client references missing user {:?}", client.user_id),
                     Some(user) => {
+                        info!("I never get here !!!!");
                         let to_clients = RocketJamApp::update(&user, &env.model, action.to_backend);
                         for client_message in to_clients.await {
                             send_to_user(client_message, &clients_by_token);
                         }
                     }
                 }
+            } else {
+                error!("Couldn't find client for token {:?}", action.token);
             }
         }
+        info!("I'm done here.");
     });
 
     warp::serve(post_routes.or(static_files).or(get_routes))
@@ -227,7 +230,7 @@ async fn action_handler(
 ) -> std::result::Result<impl Reply, Rejection> {
     info!("Received action {:?}", action);
     // should probably do auth & resolution to user already here?
-    sender.send(action.clone()).await;
+    sender.send(action.clone()).await.unwrap();
     Ok(warp::reply::json(&action))
 }
 
@@ -256,6 +259,7 @@ async fn event_handler(token: String, env: Env) -> std::result::Result<impl Repl
         };
         clients_by_token.insert(token, updated_client);
         let event_stream = rx.map(|to_client| {
+            info!("Sending event to client {:?}", to_client);
             let r: Result<Event, warp::Error> = Ok(Event::default().json_data(to_client).unwrap());
             r
         });
