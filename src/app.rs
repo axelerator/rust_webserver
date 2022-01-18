@@ -66,7 +66,7 @@ pub struct RoundState {
 pub struct Instruction {
     user_id: UserId,
     item_id: ItemId,
-    state: bool,
+    state: u8,
     eol_tick: i32,
 }
 
@@ -82,7 +82,7 @@ type ItemId = usize;
 pub struct Item {
     id: ItemId,
     label: String,
-    state: bool,
+    state: u8,
     user_id: i32,
 }
 
@@ -104,7 +104,7 @@ pub enum ClientState {
 pub struct ClientUiItem {
     id: ItemId,
     label: String,
-    state: bool,
+    state: u8,
 }
 
 fn client_state_for_user(user_id: UserId, round: &RocketJamRound) -> Option<ClientState> {
@@ -139,11 +139,7 @@ fn level_for_user(user_id: UserId, round_state: &RoundState) -> Option<ClientSta
             .iter()
             .find(|i| i.id == instruction.item_id)
             .unwrap();
-        if instruction.state {
-            format!("Turn on {}", item.label)
-        } else {
-            format!("Turn off {}", item.label)
-        }
+        format!("Turn {} to {}", item.label, instruction.state)
     } else {
         error!("Got no instruction for user {:?}", user_id);
         "".to_string()
@@ -422,7 +418,7 @@ fn change_setting(
     round: &RocketJamRound,
     current_tick: i32,
 ) -> RocketJamRound {
-    let mut new_state = false;
+    let mut new_state = 0;
     let mut instructions_executed = round_state.instructions_executed;
     let items = round_state
         .items
@@ -535,11 +531,14 @@ fn mk_instructions(user_id: UserId, items: &Vec<Item>, current_tick: i32) -> Opt
     items
         .into_iter()
         .take(1)
-        .map(|i| Instruction {
-            item_id: i.id,
-            user_id,
-            state: !i.state,
-            eol_tick: current_tick + 5,
+        .map(|i| {
+            let new_state = if i.state == 0 { 1 } else { 0 };
+            Instruction {
+                item_id: i.id,
+                user_id,
+                state: new_state,
+                eol_tick: current_tick + 5,
+            }
         })
         .next()
 }
@@ -555,7 +554,7 @@ fn mk_items(
             let item = Item {
                 id: item_id,
                 label,
-                state: false,
+                state: 0,
                 user_id,
             };
             items.push(item);

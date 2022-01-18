@@ -139,7 +139,7 @@ viewGame client_state opacity =
                         , text " is "
                         , button [ onClick <| SendAction <| ChangeSetting id ]
                             [ text <|
-                                if state then
+                                if state > 0 then
                                     "ON"
 
                                 else

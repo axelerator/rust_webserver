@@ -134,7 +134,7 @@ type alias ItemId =
 type alias UiItem =
     { id : ItemId
     , label : String
-    , state : Bool
+    , state : Int
     }
 
 
@@ -174,7 +174,7 @@ decodeUiItem =
     Decode.map3 UiItem
         (field "id" Decode.int)
         (field "label" Decode.string)
-        (field "state" Decode.bool)
+        (field "state" Decode.int)
 
 
 type ToClientEnvelope
