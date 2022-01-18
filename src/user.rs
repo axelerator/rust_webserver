@@ -28,8 +28,9 @@ impl UserServiceImpl {
     }
 
     pub async fn find_user(&self, user_id: UserId) -> Option<User> {
-        //let users_by_id = self.user_cache.read().await;
-        let maybe_user: Option<&User> = None; //users_by_id.get(&user_id);
+        let users_by_id_lock = self.user_cache.read();
+        let users_by_id = users_by_id_lock.await;
+        let maybe_user: Option<&User> = users_by_id.get(&user_id);
         match maybe_user {
             Some(user) => Some(user.clone()),
             None => {
@@ -41,7 +42,8 @@ impl UserServiceImpl {
                 .await;
                 match user_query_result {
                     Ok(user) => {
-                        //self.user_cache.write().await.insert(user_id, user.clone());
+                        // THIS PRODUCES A DEADLOCK
+                        self.user_cache.write().await.insert(user_id, user.clone());
                         Some(user)
                     }
                     _ => {
