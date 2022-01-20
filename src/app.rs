@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use log::{error, info, warn};
-use rand::{prelude::SliceRandom, thread_rng};
+use rand::{prelude::SliceRandom, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -55,7 +55,7 @@ pub enum RocketJam {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct RoundState {
-    available_items: Vec<(ItemId, String)>,
+    available_items: Vec<(ItemId, String, u8)>,
     items: Vec<Item>,
     instructions: Vec<Instruction>,
     instructions_executed: usize,
@@ -84,6 +84,7 @@ pub struct Item {
     label: String,
     state: u8,
     user_id: i32,
+    max_value: u8,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -105,6 +106,7 @@ pub struct ClientUiItem {
     id: ItemId,
     label: String,
     state: u8,
+    max_value: u8,
 }
 
 fn client_state_for_user(user_id: UserId, round: &RocketJamRound) -> Option<ClientState> {
@@ -127,6 +129,7 @@ fn level_for_user(user_id: UserId, round_state: &RoundState) -> Option<ClientSta
             id: i.id,
             label: i.label.clone(),
             state: i.state,
+            max_value: i.max_value,
         })
         .collect();
     let current_instruction = if let Some(instruction) = round_state
@@ -481,13 +484,14 @@ fn toggle_ready(
         info!("User {:?} wasn't ready, turning on", &user_id);
         if players_ready.len() == (round.players.len() - 1) {
             // everybody is ready
-            let mut available_items: Vec<(ItemId, String)> = ITEMS
+            let mut rng = thread_rng();
+            let mut available_items: Vec<(ItemId, String, u8)> = ITEMS
                 .to_vec()
                 .iter()
                 .enumerate()
-                .map(|(item_id, label)| (item_id, label.to_string()))
+                .map(|(item_id, label)| (item_id, label.to_string(), rng.gen_range(1, 10)))
                 .collect();
-            let mut rng = thread_rng();
+            
             available_items.shuffle(&mut rng);
 
             let items: Vec<Item> = round
@@ -546,16 +550,17 @@ fn mk_instructions(user_id: UserId, items: &Vec<Item>, current_tick: i32) -> Opt
 fn mk_items(
     user_id: UserId,
     count: usize,
-    available_items: &mut Vec<(ItemId, String)>,
+    available_items: &mut Vec<(ItemId, String, u8)>,
 ) -> Vec<Item> {
     let mut items = Vec::new();
     for _i in 0..count {
-        if let Some((item_id, label)) = available_items.pop() {
+        if let Some((item_id, label, max_value)) = available_items.pop() {
             let item = Item {
                 id: item_id,
                 label,
                 state: 0,
                 user_id,
+                max_value,
             };
             items.push(item);
         } else {

@@ -135,6 +135,7 @@ type alias UiItem =
     { id : ItemId
     , label : String
     , state : Int
+    , maxValue: Int
     }
 
 
@@ -171,10 +172,11 @@ decodeInLevel =
 
 decodeUiItem : Decoder UiItem
 decodeUiItem =
-    Decode.map3 UiItem
+    Decode.map4 UiItem
         (field "id" Decode.int)
         (field "label" Decode.string)
         (field "state" Decode.int)
+        (field "max_value" Decode.int)
 
 
 type ToClientEnvelope

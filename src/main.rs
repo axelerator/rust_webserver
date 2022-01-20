@@ -181,9 +181,10 @@ fn send_to_user(
             "Sending to client {:?} ({:?}: {:?})",
             &token, &user_id, &to_client
         );
-        sender
-            .send(ToClientEnvelope::AppMsg(to_client.clone()))
-            .expect("Could not send msg to client");
+        let send_result = sender.send(ToClientEnvelope::AppMsg(to_client.clone()));
+        if let Err(e) = send_result {
+            warn!("Cannot send {:?}", e);
+        }
     });
 }
 

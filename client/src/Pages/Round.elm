@@ -133,9 +133,10 @@ viewGame client_state opacity =
 
         InLevel { currentInstruction, uiItems, instructionsExecuted, instructionsMissed } ->
             let
-                mkUiItem { label, state, id } =
+                mkUiItem { label, state, id, maxValue } =
                     li []
                         [ text label
+                        , text <| " ( " ++ String.fromInt maxValue ++ " ) "
                         , text " is "
                         , button [ onClick <| SendAction <| ChangeSetting id ]
                             [ text <|
