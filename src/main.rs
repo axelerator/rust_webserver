@@ -82,12 +82,11 @@ async fn main() {
         .await
         .unwrap();
 
-    let user_service = UserServiceImpl::new(&pool);
     let env = Env {
         pool: pool.clone(),
         clients_by_token: Arc::new(RwLock::new(HashMap::new())),
         model: Arc::new(RwLock::new(init_model())),
-        user_service,
+        user_service: UserServiceImpl::new(&pool),
     };
 
     let model2 = env.model.clone();
