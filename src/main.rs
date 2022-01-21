@@ -131,7 +131,6 @@ async fn main() {
                 match user_by_id {
                     None => error!("Client references missing user {:?}", client.user_id),
                     Some(user) => {
-                        info!("I never get here !!!!");
                         let to_clients = RocketJamApp::update(&user, &env.model, action.to_backend);
                         for client_message in to_clients.await {
                             send_to_user(client_message, &clients_by_token);
