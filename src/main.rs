@@ -5,7 +5,6 @@ mod user;
 use env::{Client, Env, ToClientEnvelope};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use sqlx::postgres::PgPoolOptions;
 //use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::time::Duration;
@@ -75,15 +74,6 @@ fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Inf
 #[tokio::main]
 async fn main() {
     env_logger::init();
-    let be = ToBackendEnvelope {
-        token: "aToken".to_string(),
-        to_backend: ToBackend::JoinGame {
-            round_id: "foo".to_string(),
-        },
-    };
-    let v = serde_json::to_string(&be);
-    println!("json {:?}", v);
-
     let (sender, mut receiver) = tokio::sync::mpsc::channel::<ToBackendEnvelope>(32);
 
     let pool = PgPoolOptions::new()
