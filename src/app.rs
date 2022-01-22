@@ -42,7 +42,7 @@ pub enum ToBackend {
     Init,
     StartGame,
     ToggleReady,
-    ChangeSetting { item_id: ItemId },
+    ChangeSetting { item_id: ItemId, value: u8 },
     GetAvailableRounds,
     JoinGame { round_id: RoundId },
 }
@@ -406,8 +406,8 @@ fn update_round(
         (ToBackend::ToggleReady, RocketJam::InLobby { players_ready }) => {
             toggle_ready(user_id, players_ready, round, current_tick)
         }
-        (ToBackend::ChangeSetting { item_id }, RocketJam::InLevel(game_state)) => {
-            change_setting(user_id, *item_id, game_state, round, current_tick)
+        (ToBackend::ChangeSetting { item_id, value }, RocketJam::InLevel(game_state)) => {
+            change_setting(user_id, *item_id, *value, game_state, round, current_tick)
         }
 
         _ => round.clone(),
@@ -417,6 +417,7 @@ fn update_round(
 fn change_setting(
     user_id: UserId,
     item_id: ItemId,
+    value: u8,
     round_state: &RoundState,
     round: &RocketJamRound,
     current_tick: i32,
@@ -428,7 +429,7 @@ fn change_setting(
         .iter()
         .map(|item| {
             if item.id == item_id && item.user_id == user_id {
-                new_state = !item.state;
+                new_state = value;
                 Item {
                     state: new_state,
                     ..item.clone()
@@ -489,9 +490,9 @@ fn toggle_ready(
                 .to_vec()
                 .iter()
                 .enumerate()
-                .map(|(item_id, label)| (item_id, label.to_string(), rng.gen_range(1, 10)))
+                .map(|(item_id, label)| (item_id, label.to_string(), rng.gen_range(2, 10)))
                 .collect();
-            
+
             available_items.shuffle(&mut rng);
 
             let items: Vec<Item> = round

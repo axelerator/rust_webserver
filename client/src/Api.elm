@@ -65,7 +65,7 @@ type ToBackend
     = Init
     | StartGame
     | ToggleReady
-    | ChangeSetting ItemId
+    | ChangeSetting ItemId Int
     | GetAvailableRounds
     | JoinGame RoundId
 
@@ -96,9 +96,14 @@ encodeToBackend tb =
         ToggleReady ->
             Encode.string "ToggleReady"
 
-        ChangeSetting item_id ->
+        ChangeSetting item_id value ->
             Encode.object
-                [ ( "ChangeSetting", Encode.object [ ( "item_id", Encode.int item_id ) ] )
+                [ ( "ChangeSetting"
+                  , Encode.object
+                        [ ( "item_id", Encode.int item_id )
+                        , ( "value", Encode.int value )
+                        ]
+                  )
                 ]
 
         GetAvailableRounds ->
@@ -135,7 +140,7 @@ type alias UiItem =
     { id : ItemId
     , label : String
     , state : Int
-    , maxValue: Int
+    , maxValue : Int
     }
 
 

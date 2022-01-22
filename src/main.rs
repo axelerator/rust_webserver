@@ -93,7 +93,7 @@ async fn main() {
     let clients_by_token2 = env.clients_by_token.clone();
     tokio::spawn(async move {
         loop {
-            sleep(Duration::from_secs(1)).await;
+            sleep(Duration::from_secs(3)).await;
             let msgs = RocketJamApp::tick(&model2).await;
             let clients_by_token = clients_by_token2.read().await;
             for client_message in msgs {

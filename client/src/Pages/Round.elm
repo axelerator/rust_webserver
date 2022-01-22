@@ -13,6 +13,7 @@ import Html.Styled exposing (Html, button, div, li, p, span, text, ul)
 import Html.Styled.Attributes exposing (style)
 import Html.Styled.Events exposing (onClick)
 import Session exposing (Session)
+import Util
 
 
 type alias Model =
@@ -118,6 +119,22 @@ view model =
         ]
 
 
+mkUiItem : Api.UiItem -> Html Msg
+mkUiItem { label, state, id, maxValue } =
+    case List.head <| List.drop (maxValue - 2) Util.knobDefinitions of
+        Nothing ->
+            text "knob not found"
+
+        Just knobDefinition ->
+            li [ onClick <| SendAction <| ChangeSetting id (modBy maxValue (state + 1)) ]
+                [ text label
+                , text <| " ( " ++ String.fromInt state
+                , text "/"
+                , text <| String.fromInt maxValue ++ " ) "
+                , Util.knob knobDefinition state
+                ]
+
+
 viewGame : ClientState -> Float -> Html Msg
 viewGame client_state opacity =
     case client_state of
@@ -132,22 +149,6 @@ viewGame client_state opacity =
                 ]
 
         InLevel { currentInstruction, uiItems, instructionsExecuted, instructionsMissed } ->
-            let
-                mkUiItem { label, state, id, maxValue } =
-                    li []
-                        [ text label
-                        , text <| " ( " ++ String.fromInt maxValue ++ " ) "
-                        , text " is "
-                        , button [ onClick <| SendAction <| ChangeSetting id ]
-                            [ text <|
-                                if state > 0 then
-                                    "ON"
-
-                                else
-                                    "OFF"
-                            ]
-                        ]
-            in
             div []
                 [ p [] [ text "Instructions executed: ", text <| String.fromInt instructionsExecuted ]
                 , p [] [ text "Instructions missed: ", text <| String.fromInt instructionsMissed ]
