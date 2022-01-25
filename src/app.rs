@@ -6,7 +6,12 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use std::time::Duration;
+use tokio::time::sleep;
+use crate::client_broadcast::ClientBroadcaster;
+
 use crate::user::{User, UserId};
+use crate::env::{Env};
 
 const ITEMS: &'static [&'static str] = &[
     "Chemex Coffeemaker",
@@ -45,6 +50,12 @@ pub enum ToBackend {
     ChangeSetting { item_id: ItemId, value: u8 },
     GetAvailableRounds,
     JoinGame { round_id: RoundId },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ToBackendEnvelope {
+    pub token: String,
+    pub to_backend: ToBackend,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -167,13 +178,63 @@ pub fn init_rocket_jam(user_id: UserId) -> RocketJamRound {
 
 pub type RoundId = String;
 
-pub struct RocketJamApp {}
+pub struct RocketJamApp {
+    model: RwLock<Model>,
+}
 
 pub type ClientMessage = (UserId, ToClient);
 
 impl RocketJamApp {
-    pub async fn tick(model: &RwLock<Model>) -> Vec<ClientMessage> {
-        let mut model = model.write().await;
+    pub fn new() -> Self {
+        RocketJamApp {
+            model: RwLock::new(Model {
+                games_by_id: HashMap::new(),
+                game_ids_by_user_id: HashMap::new(),
+                tick: 0,
+            }),
+        }
+    }
+
+    pub async fn start_processing(self, client_broadcaster: ClientBroadcaster) {
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_secs(1)).await;
+                let msgs = self.tick().await;
+    
+                for client_message in msgs {
+                    client_broadcaster.send_to_user(client_message);
+                }
+            }
+        }).await;
+    }
+
+    pub async fn start_message_processing(self, mut receiver: tokio::sync::mpsc::Receiver<ToBackendEnvelope>, 
+        client_broadcaster: ClientBroadcaster, env: Env) {
+        tokio::spawn(async move {
+            while let Some(action) = receiver.recv().await {
+                info!("Processing action {:?}", action);
+    
+                if let Some(client) = client_broadcaster.get_user(&action.token).await {
+                    let user_by_id = env.user_service.find_user(client.user_id).await;
+                    match user_by_id {
+                        None => error!("Client references missing user {:?}", client.user_id),
+                        Some(user) => {
+                            let to_clients = self.update(&user, action.to_backend);
+                            for client_message in to_clients.await {
+                                client_broadcaster.send_to_user(client_message);
+                            }
+                        }
+                    }
+                } else {
+                    error!("Couldn't find client for token {:?}", action.token);
+                }
+            }
+            info!("I'm done here.");
+        });
+    }
+
+    pub async fn tick(&self) -> Vec<ClientMessage> {
+        let mut model = self.model.write().await;
         let mut updated_rounds = HashMap::new();
         let mut msgs = Vec::new();
         for (key, round) in model.games_by_id.iter() {
@@ -187,10 +248,20 @@ impl RocketJamApp {
         msgs
     }
 
-    pub async fn update(user: &User, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
+    async fn find_game_by_user_id(&self, user_id: &UserId) -> Option<RocketJamRound> {
+        let model = self.model.read().await;
+        if let Some(game_id) = model.game_ids_by_user_id.get(&user_id) {
+            if let Some(round) = model.games_by_id.get(game_id) {
+                return Some(round.clone());
+            }
+        }
+        None
+    }
+
+    pub async fn update(&self, user: &User, msg: ToBackend) -> Vec<ClientMessage> {
         info!("app update with msg {:?}", msg);
-        if let Some(round) = find_game_by_user_id(&user.id, model).await {
-            let mut model = model.write().await;
+        if let Some(round) = self.find_game_by_user_id(&user.id).await {
+            let mut model = self.model.write().await;
             let updated_round = update_round(user.id, &round, &msg, model.tick);
             let round_id = round.id;
             model
@@ -211,10 +282,12 @@ impl RocketJamApp {
                 .collect()
         } else {
             return match msg {
-                ToBackend::Init => get_available_rounds(user.id, model).await,
-                ToBackend::StartGame => start_game(user.id, model).await,
-                ToBackend::GetAvailableRounds => get_available_rounds(user.id, model).await,
-                ToBackend::JoinGame { round_id } => join_game(user.id, &round_id, model).await,
+                ToBackend::Init => get_available_rounds(user.id, &self.model).await,
+                ToBackend::StartGame => start_game(user.id, &self.model).await,
+                ToBackend::GetAvailableRounds => get_available_rounds(user.id, &self.model).await,
+                ToBackend::JoinGame { round_id } => {
+                    join_game(user.id, &round_id, &self.model).await
+                }
                 _ => vec![],
             };
         }
@@ -376,24 +449,6 @@ async fn start_game(user_id: UserId, model: &RwLock<Model>) -> Vec<ClientMessage
         return vec![(user_id, ToClient::EnterRound { client_state })];
     }
     vec![]
-}
-
-async fn find_game_by_user_id(user_id: &UserId, model: &RwLock<Model>) -> Option<RocketJamRound> {
-    let model = model.read().await;
-    if let Some(game_id) = model.game_ids_by_user_id.get(&user_id) {
-        if let Some(round) = model.games_by_id.get(game_id) {
-            return Some(round.clone());
-        }
-    }
-    None
-}
-
-pub fn init_model() -> Model {
-    Model {
-        games_by_id: HashMap::new(),
-        game_ids_by_user_id: HashMap::new(),
-        tick: 0,
-    }
 }
 
 fn update_round(
