@@ -81,7 +81,6 @@ async fn main() {
 
     let env = Env {
         pool: pool.clone(),
-        //clients_by_token: Arc::new(RwLock::new(HashMap::new())),
         client_broadcaster: ClientBroadcaster::new(),
         model: Arc::new(RwLock::new(init_model())),
         user_service: UserServiceImpl::new(&pool),

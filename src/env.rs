@@ -14,7 +14,6 @@ use log::{warn};
 #[derive(Clone)]
 pub struct Env {
     pub pool: PgPool,
-    //pub clients_by_token: ClientsByToken,
     pub client_broadcaster: ClientBroadcaster,
     pub model: Arc<RwLock<Model>>,
     pub user_service: UserServiceImpl,
