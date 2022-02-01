@@ -64,6 +64,29 @@ struct ConnectRequest {
     token: String,
 }
 
+struct Gameloop {
+    env: Env
+}
+
+impl Gameloop {
+    fn new(env: Env) -> Self {
+        Gameloop {
+            env,
+        }
+    }
+    fn start_loop(self) {
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_secs(3)).await;
+                let msgs = RocketJamApp::tick(&self.env.model).await;
+                for client_message in msgs {
+                    self.env.client_broadcaster.send_to_user(client_message).await;
+                }
+            }
+        });
+    }
+}
+
 fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || env.clone())
 }
@@ -85,18 +108,8 @@ async fn main() {
         user_service: UserServiceImpl::new(&pool),
     };
 
-    let model2 = env.model.clone();
-    let env2 = env.clone();
-
-    tokio::spawn(async move {
-        loop {
-            sleep(Duration::from_secs(3)).await;
-            let msgs = RocketJamApp::tick(&model2).await;
-            for client_message in msgs {
-                env2.client_broadcaster.send_to_user(client_message).await;
-            }
-        }
-    });
+    let gameloop = Gameloop::new(env.clone());
+    gameloop.start_loop();
 
     let static_files = warp::any().and(warp::fs::dir("client"));
 
@@ -117,6 +130,7 @@ async fn main() {
 
     let post_routes = warp::post().and(login.or(action));
     let get_routes = warp::get().and(event_route);
+
     tokio::spawn(async move {
         while let Some(action) = receiver.recv().await {
             info!("Processing action {:?}", action);
