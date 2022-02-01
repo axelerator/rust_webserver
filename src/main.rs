@@ -80,7 +80,6 @@ async fn main() {
         .unwrap();
 
     let env = Env {
-        pool: pool.clone(),
         client_broadcaster: ClientBroadcaster::new(),
         model: Arc::new(RwLock::new(init_model())),
         user_service: UserServiceImpl::new(&pool),

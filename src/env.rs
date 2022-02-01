@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 
 use crate::{
@@ -13,7 +12,6 @@ use log::{warn};
 
 #[derive(Clone)]
 pub struct Env {
-    pub pool: PgPool,
     pub client_broadcaster: ClientBroadcaster,
     pub model: Arc<RwLock<Model>>,
     pub user_service: UserServiceImpl,
