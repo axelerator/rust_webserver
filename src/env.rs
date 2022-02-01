@@ -8,7 +8,7 @@ use crate::{
     user::UserServiceImpl,
 };
 
-use log::{warn};
+use log::warn;
 
 #[derive(Clone)]
 pub struct Env {
