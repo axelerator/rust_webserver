@@ -65,14 +65,12 @@ struct ConnectRequest {
 }
 
 struct Gameloop {
-    env: Env
+    env: Env,
 }
 
 impl Gameloop {
     fn new(env: Env) -> Self {
-        Gameloop {
-            env,
-        }
+        Gameloop { env }
     }
     fn start_loop(self) {
         tokio::spawn(async move {
@@ -80,9 +78,50 @@ impl Gameloop {
                 sleep(Duration::from_secs(3)).await;
                 let msgs = RocketJamApp::tick(&self.env.model).await;
                 for client_message in msgs {
-                    self.env.client_broadcaster.send_to_user(client_message).await;
+                    self.env
+                        .client_broadcaster
+                        .send_to_user(client_message)
+                        .await;
                 }
             }
+        });
+    }
+}
+
+struct BackendMessageProcessor {
+    env: Env,
+    receiver: tokio::sync::mpsc::Receiver<ToBackendEnvelope>,
+}
+
+impl BackendMessageProcessor {
+    fn new(env: Env, receiver: tokio::sync::mpsc::Receiver<ToBackendEnvelope>) -> Self {
+        BackendMessageProcessor { env, receiver }
+    }
+
+    fn start_loop(mut self) {
+        tokio::spawn(async move {
+            while let Some(action) = self.receiver.recv().await {
+                info!("Processing action {:?}", action);
+                if let Some(client) = self.env.client_broadcaster.get(&action.token).await {
+                    let user_by_id = self.env.user_service.find_user(client.user_id).await;
+                    match user_by_id {
+                        None => error!("Client references missing user {:?}", client.user_id),
+                        Some(user) => {
+                            let to_clients =
+                                RocketJamApp::update(&user, &self.env.model, action.to_backend);
+                            for client_message in to_clients.await {
+                                self.env
+                                    .client_broadcaster
+                                    .send_to_user(client_message)
+                                    .await;
+                            }
+                        }
+                    }
+                } else {
+                    error!("Couldn't find client for token {:?}", action.token);
+                }
+            }
+            info!("I'm done here.");
         });
     }
 }
@@ -94,7 +133,7 @@ fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Inf
 #[tokio::main]
 async fn main() {
     env_logger::init();
-    let (sender, mut receiver) = tokio::sync::mpsc::channel::<ToBackendEnvelope>(32);
+    let (sender, receiver) = tokio::sync::mpsc::channel::<ToBackendEnvelope>(32);
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -108,8 +147,9 @@ async fn main() {
         user_service: UserServiceImpl::new(&pool),
     };
 
-    let gameloop = Gameloop::new(env.clone());
-    gameloop.start_loop();
+
+    Gameloop::new(env.clone()).start_loop();
+    BackendMessageProcessor::new(env.clone(), receiver).start_loop();
 
     let static_files = warp::any().and(warp::fs::dir("client"));
 
@@ -130,27 +170,6 @@ async fn main() {
 
     let post_routes = warp::post().and(login.or(action));
     let get_routes = warp::get().and(event_route);
-
-    tokio::spawn(async move {
-        while let Some(action) = receiver.recv().await {
-            info!("Processing action {:?}", action);
-            if let Some(client) = env.client_broadcaster.get(&action.token).await {
-                let user_by_id = env.user_service.find_user(client.user_id).await;
-                match user_by_id {
-                    None => error!("Client references missing user {:?}", client.user_id),
-                    Some(user) => {
-                        let to_clients = RocketJamApp::update(&user, &env.model, action.to_backend);
-                        for client_message in to_clients.await {
-                            env.client_broadcaster.send_to_user(client_message).await;
-                        }
-                    }
-                }
-            } else {
-                error!("Couldn't find client for token {:?}", action.token);
-            }
-        }
-        info!("I'm done here.");
-    });
 
     warp::serve(post_routes.or(static_files).or(get_routes))
         .run(([127, 0, 0, 1], 3030))
