@@ -1,4 +1,5 @@
 mod app;
+mod backend_messages;
 mod env;
 mod user;
 
@@ -11,13 +12,15 @@ use std::time::Duration;
 use tokio::{sync::mpsc::Sender, time::sleep};
 use warp::{Filter, Rejection, Reply};
 
+use backend_messages::{Processor, ToBackendEnvelope};
+
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::sse::Event;
 
 use uuid::Uuid;
 
-use app::{RocketJamApp, ToBackend};
-use log::{error, info};
+use app::RocketJamApp;
+use log::info;
 
 use crate::user::UserServiceImpl;
 
@@ -42,12 +45,6 @@ struct LoginSuccessDetails {
 #[derive(Serialize, Deserialize)]
 struct LoginFailureDetails {
     msg: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct ToBackendEnvelope {
-    token: String,
-    to_backend: ToBackend,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -85,43 +82,6 @@ impl Gameloop {
     }
 }
 
-struct BackendMessageProcessor {
-    env: Env,
-    receiver: tokio::sync::mpsc::Receiver<ToBackendEnvelope>,
-}
-
-impl BackendMessageProcessor {
-    fn new(env: Env, receiver: tokio::sync::mpsc::Receiver<ToBackendEnvelope>) -> Self {
-        BackendMessageProcessor { env, receiver }
-    }
-
-    fn start_loop(mut self) {
-        tokio::spawn(async move {
-            while let Some(action) = self.receiver.recv().await {
-                info!("Processing action {:?}", action);
-                if let Some(client) = self.env.client_broadcaster.get(&action.token).await {
-                    let user_by_id = self.env.user_service.find_user(client.user_id).await;
-                    match user_by_id {
-                        None => error!("Client references missing user {:?}", client.user_id),
-                        Some(user) => {
-                            let to_clients = self.env.app.update(&user, action.to_backend);
-                            for client_message in to_clients.await {
-                                self.env
-                                    .client_broadcaster
-                                    .send_to_user(client_message)
-                                    .await;
-                            }
-                        }
-                    }
-                } else {
-                    error!("Couldn't find client for token {:?}", action.token);
-                }
-            }
-            info!("I'm done here.");
-        });
-    }
-}
-
 fn with_env(env: Env) -> impl Filter<Extract = (Env,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || env.clone())
 }
@@ -144,7 +104,7 @@ async fn main() {
     };
 
     Gameloop::new(env.clone()).start_loop();
-    BackendMessageProcessor::new(env.clone(), receiver).start_loop();
+    Processor::new(env.clone(), receiver).start_loop();
 
     let static_files = warp::any().and(warp::fs::dir("client"));
 
