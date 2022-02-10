@@ -6,12 +6,9 @@ use env::{Client, ClientBroadcaster, Env, ToClientEnvelope};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
-use std::sync::Arc;
+
 use std::time::Duration;
-use tokio::{
-    sync::{mpsc::Sender, RwLock},
-    time::sleep,
-};
+use tokio::{sync::mpsc::Sender, time::sleep};
 use warp::{Filter, Rejection, Reply};
 
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -19,7 +16,7 @@ use warp::sse::Event;
 
 use uuid::Uuid;
 
-use app::{init_model, RocketJamApp, ToBackend};
+use app::{RocketJamApp, ToBackend};
 use log::{error, info};
 
 use crate::user::UserServiceImpl;
@@ -76,7 +73,7 @@ impl Gameloop {
         tokio::spawn(async move {
             loop {
                 sleep(Duration::from_secs(3)).await;
-                let msgs = RocketJamApp::tick(&self.env.model).await;
+                let msgs = self.env.app.tick().await;
                 for client_message in msgs {
                     self.env
                         .client_broadcaster
@@ -107,8 +104,7 @@ impl BackendMessageProcessor {
                     match user_by_id {
                         None => error!("Client references missing user {:?}", client.user_id),
                         Some(user) => {
-                            let to_clients =
-                                RocketJamApp::update(&user, &self.env.model, action.to_backend);
+                            let to_clients = self.env.app.update(&user, action.to_backend);
                             for client_message in to_clients.await {
                                 self.env
                                     .client_broadcaster
@@ -143,10 +139,9 @@ async fn main() {
 
     let env = Env {
         client_broadcaster: ClientBroadcaster::new(),
-        model: Arc::new(RwLock::new(init_model())),
+        app: RocketJamApp::new(),
         user_service: UserServiceImpl::new(&pool),
     };
-
 
     Gameloop::new(env.clone()).start_loop();
     BackendMessageProcessor::new(env.clone(), receiver).start_loop();

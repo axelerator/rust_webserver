@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 
 use crate::{
-    app::{ClientMessage, Model, ToClient},
+    app::{ClientMessage, RocketJamApp, ToClient},
     user::UserServiceImpl,
 };
 
@@ -13,7 +13,7 @@ use log::warn;
 #[derive(Clone)]
 pub struct Env {
     pub client_broadcaster: ClientBroadcaster,
-    pub model: Arc<RwLock<Model>>,
+    pub app: RocketJamApp,
     pub user_service: UserServiceImpl,
 }
 

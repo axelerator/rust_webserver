@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use log::{error, info, warn};
 use rand::{prelude::SliceRandom, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -167,13 +168,22 @@ pub fn init_rocket_jam(user_id: UserId) -> RocketJamRound {
 
 pub type RoundId = String;
 
-pub struct RocketJamApp {}
+#[derive(Clone)]
+pub struct RocketJamApp {
+    model: Arc<RwLock<Model>>,
+}
 
 pub type ClientMessage = (UserId, ToClient);
 
 impl RocketJamApp {
-    pub async fn tick(model: &RwLock<Model>) -> Vec<ClientMessage> {
-        let mut model = model.write().await;
+    pub fn new() -> Self {
+        RocketJamApp {
+            model: Arc::new(RwLock::new(init_model())),
+        }
+    }
+
+    pub async fn tick(&self) -> Vec<ClientMessage> {
+        let mut model = self.model.write().await;
         let mut updated_rounds = HashMap::new();
         let mut msgs = Vec::new();
         for (key, round) in model.games_by_id.iter() {
@@ -187,10 +197,10 @@ impl RocketJamApp {
         msgs
     }
 
-    pub async fn update(user: &User, model: &RwLock<Model>, msg: ToBackend) -> Vec<ClientMessage> {
+    pub async fn update(&self, user: &User, msg: ToBackend) -> Vec<ClientMessage> {
         info!("app update with msg {:?}", msg);
-        if let Some(round) = find_game_by_user_id(&user.id, model).await {
-            let mut model = model.write().await;
+        if let Some(round) = find_game_by_user_id(&user.id, &self.model).await {
+            let mut model = self.model.write().await;
             let updated_round = update_round(user.id, &round, &msg, model.tick);
             let round_id = round.id;
             model
@@ -211,10 +221,12 @@ impl RocketJamApp {
                 .collect()
         } else {
             return match msg {
-                ToBackend::Init => get_available_rounds(user.id, model).await,
-                ToBackend::StartGame => start_game(user.id, model).await,
-                ToBackend::GetAvailableRounds => get_available_rounds(user.id, model).await,
-                ToBackend::JoinGame { round_id } => join_game(user.id, &round_id, model).await,
+                ToBackend::Init => get_available_rounds(user.id, &self.model).await,
+                ToBackend::StartGame => start_game(user.id, &self.model).await,
+                ToBackend::GetAvailableRounds => get_available_rounds(user.id, &self.model).await,
+                ToBackend::JoinGame { round_id } => {
+                    join_game(user.id, &round_id, &self.model).await
+                }
                 _ => vec![],
             };
         }
